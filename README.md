@@ -2,6 +2,10 @@
 
 https://www.bilibili.com/video/BV1vjeGzfE1w
 
+感谢 @小四啊-_- 提供的安装运行教程
+
+>  https://www.bilibili.com/opus/1110957341959782402
+
 ## 部署  (py3.9.15) (conda)
 
 ### 安装包

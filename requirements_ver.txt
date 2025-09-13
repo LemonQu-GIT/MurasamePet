@@ -9,5 +9,24 @@ PyQt5_sip==12.17.0
 Requests==2.32.5
 rich==14.1.0
 torch==2.7.0+cu126
+torchaudio
 transformers==4.54.1
 uvicorn==0.35.0
+modelscope
+
+# GPT-SoVITS requirements
+soundfile
+ffmpeg
+librosa
+pytorch_lightning
+matplotlib
+x_transformers
+peft
+jieba
+fast_langdetect
+split_lang
+cn2an
+pypinyin
+jieba_fast
+python-multipart
+bitsandbytes
