@@ -176,3 +176,4 @@ cython_debug/
 
 #MacOS File System
 .DS_Store
+.vscode
