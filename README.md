@@ -36,10 +36,8 @@ https://github.com/RVC-Boss/GPT-SoVITS
 运行 ./models/Murasame_SoVITS 中的两个模型
 
 ```shell
-python api_v2.py
+python ./GPT-SoVITS/api_v2.py
 ```
-
-注意，`api_v2.py` 为 `GPT-SoVITS` Repository 中的文件 (https://github.com/RVC-Boss/GPT-SoVITS/blob/main/api_v2.py)
 
 ### 运行本地 API
 
