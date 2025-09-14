@@ -2,7 +2,7 @@
 
 https://www.bilibili.com/video/BV1vjeGzfE1w
 
-## 部署  (py3.9.15) (conda)
+## 部署 
 
 ### 安装包
 
@@ -64,25 +64,33 @@ python ./pet.py
 {
     "openrouter_api_key": "sk-or-v1-xxxxxxxxxxxxx",  // 填入你的 API key
     "endpoints": {
-        "ollama": "http://localhost:11434",
-        // ... 其他配置保持不变
+        //...(此部分修改在后文有讲)
     },
     // ... 其他配置
 }
 ```
 
-3. 重启 `api.py` 服务
+### macOS 权限配置
 
-**注意：**
-- `openrouter_api_key` 留空：使用本地 Ollama 服务
-- `openrouter_api_key` 有值：自动切换到 OpenRouter 云端服务
-- OpenRouter 支持 Qwen3:14b 文本模型
-- OpenRouter 暂不支持 Qwen2.5VL 的图像输入功能
-- 如需使用图像功能，请将 `openrouter_api_key` 留空
+如果使用视觉功能，需要配置屏幕录制权限：
+
+1. 系统偏好设置 → 安全性与隐私 → 隐私 → 屏幕录制
+2. 点击 "+" 添加 Terminal 或 Python
+3. 重启应用程序
+
+权限不足时会看到相关错误提示，按照此教程给予权限后重启api服务即可
+
+3. 重启 `api.py` 服务
 
 ### 注
 
-若 Ollama / api.py 不在本地运行，那么需要在 `./config.json`中修改相关 endpoint 地址
+根据你的部署情况，可能需要修改 `./config.json` 中的以下地址：
+
+- **Ollama 地址** (`ollama`)：如果 Ollama 服务不在 `http://localhost:11434` 运行
+- **GPT-SoVITS 地址** (`murasame-sovits`)：确认语音合成的 API 地址，通常是 `http://localhost:9880/tts`
+- **本地 API 地址** (`qwen3`, `qwenvl`, `murasame`)：如果 `api.py` 不在 `http://localhost:28565` 运行
+
+其他配置通常无需修改。
 
 ## 使用（？）
 

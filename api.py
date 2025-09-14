@@ -54,7 +54,7 @@ def should_use_openrouter(config):
     return bool(api_key.strip())  # 有非空值就使用 OpenRouter
 
 
-def call_openrouter_api(api_key, model, messages):
+def call_openrouter_api(api_key, model, messages, image_url=None):
     """调用 OpenRouter API"""
     headers = {
         "Authorization": f"Bearer {api_key}",
@@ -62,6 +62,22 @@ def call_openrouter_api(api_key, model, messages):
         "HTTP-Referer": "https://murasame-pet.local",
         "X-Title": "MurasamePet"
     }
+
+    # 处理图像输入 - 按照 OpenRouter 官方文档格式
+    if image_url:
+        # 如果有图像，将最后一个用户消息修改为包含图像
+        for message in reversed(messages):
+            if message['role'] == 'user':
+                if isinstance(message['content'], str):
+                    # 将字符串转换为官方文档要求的数组格式
+                    message['content'] = [
+                        {"type": "text", "text": message['content']},
+                        {"type": "image_url", "image_url": {"url": image_url}}
+                    ]
+                elif isinstance(message['content'], list):
+                    # 如果已经是数组格式，直接添加图像
+                    message['content'].append({"type": "image_url", "image_url": {"url": image_url}})
+                break
 
     data = {
         "model": model,
@@ -132,34 +148,15 @@ async def create_qwen3_chat(request: Request):
     if prompt != "":
         history = history + [{'role': role, 'content': prompt}]
 
+    # Qwen3-14b 强制使用本地 LoRA 以保持角色特色
     config = get_config()
-
-    if should_use_openrouter(config):
-        # 使用 OpenRouter API
-        api_key = config.get('openrouter_api_key', '')
-        try:
-            result = call_openrouter_api(
-                api_key,
-                "qwen/qwen-3-14b",  # OpenRouter 模型名称
-                history
-            )
-            final_response = result['choices'][0]['message']['content']
-        except Exception as e:
-            return {
-                "response": f"OpenRouter API error: {str(e)}",
-                "history": history,
-                "status": 500,
-                "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            }
-    else:
-        # 使用本地 Ollama API
-        endpoint_url = config['endpoints']['ollama']
-        response = requests.post(
-            f"{endpoint_url}/api/chat",
-            json={"model": "qwen3:14b", "messages": history,
-                  "stream": False, "options": {"keep_alive": -1}},
-        )
-        final_response = response.json()['message']['content']
+    endpoint_url = config['endpoints']['ollama']
+    response = requests.post(
+        f"{endpoint_url}/api/chat",
+        json={"model": "qwen3:14b", "messages": history,
+              "stream": False, "options": {"keep_alive": -1}},
+    )
+    final_response = response.json()['message']['content']
 
     history = history + [{'role': 'assistant', 'content': final_response}]
     time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -192,26 +189,25 @@ async def create_qwenvl_chat(request: Request):
     config = get_config()
 
     if should_use_openrouter(config):
-        # OpenRouter 目前可能不支持视觉模型，直接返回不支持消息
-        if "image" in json_post_list:
-            final_response = "OpenRouter 暂不支持图像输入，请使用本地 Ollama 服务进行图像分析。"
-        else:
-            # 对于纯文本，使用 OpenRouter
-            api_key = config.get('openrouter_api_key', '')
-            try:
-                result = call_openrouter_api(
-                    api_key,
-                    "qwen/qwen-2.5-vl-7b-instruct",  # OpenRouter 视觉模型名称
-                    history
-                )
-                final_response = result['choices'][0]['message']['content']
-            except Exception as e:
-                return {
-                    "response": f"OpenRouter API error: {str(e)}",
-                    "history": history,
-                    "status": 500,
-                    "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                }
+        # 使用 OpenRouter，支持图像输入
+        api_key = config.get('openrouter_api_key', '')
+        image_url = json_post_list.get('image') if "image" in json_post_list else None
+
+        try:
+            result = call_openrouter_api(
+                api_key,
+                "qwen/qwen-2.5-vl-7b-instruct",  # OpenRouter 视觉模型名称
+                history,
+                image_url=image_url
+            )
+            final_response = result['choices'][0]['message']['content']
+        except Exception as e:
+            return {
+                "response": f"OpenRouter API error: {str(e)}",
+                "history": history,
+                "status": 500,
+                "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            }
     else:
         # 使用本地 Ollama API
         endpoint_url = config['endpoints']['ollama']

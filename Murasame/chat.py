@@ -76,22 +76,72 @@ def query(prompt: str, history: list[dict] = [], role: str = "user", try_reduce_
 
 
 def query_image(image: Image.Image, prompt: str, history: list[dict] = [], url=qwenvl_endpoint):
-    buffered = BytesIO()
-    image.save(buffered, format="PNG")
-    img_str = base64.b64encode(buffered.getvalue()).decode()
-    headers = {
-        "Content-Type": "application/json"
-    }
-    payload = {
-        "prompt": prompt,
-        "history": history,
-        "image": img_str
-    }
-    response_json = requests.post(
-        url, json=payload, headers=headers).json()
-    response = response_json["response"]
-    history_ = response_json["history"]
-    return response, history_
+    # 检查是否应该使用 OpenRouter
+    config = get_config()
+    use_openrouter = config.get('openrouter_api_key', '').strip() != ''
+
+    if use_openrouter:
+        # 使用 OpenRouter 处理图像
+        buffered = BytesIO()
+        image.save(buffered, format="PNG")
+        img_base64 = base64.b64encode(buffered.getvalue()).decode()
+
+        # 构建 OpenRouter 格式的消息
+        messages = []
+        if history:
+            messages.extend(history)
+
+        # 添加图像消息
+        image_message = {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": prompt},
+                {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{img_base64}"}}
+            ]
+        }
+        messages.append(image_message)
+
+        # 调用 OpenRouter API
+        headers = {
+            "Authorization": f"Bearer {config['openrouter_api_key']}",
+            "Content-Type": "application/json",
+            "HTTP-Referer": "https://murasame-pet.local",
+            "X-Title": "MurasamePet"
+        }
+
+        data = {
+            "model": "qwen/qwen-2.5-vl-7b-instruct",
+            "messages": messages,
+            "temperature": 0.7,
+            "max_tokens": 2048
+        }
+
+        response = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=data)
+        response.raise_for_status()
+        result = response.json()
+
+        response_text = result['choices'][0]['message']['content']
+        # 更新历史记录
+        history_ = messages + [{"role": "assistant", "content": response_text}]
+        return response_text, history_
+    else:
+        # 使用本地 API
+        buffered = BytesIO()
+        image.save(buffered, format="PNG")
+        img_str = base64.b64encode(buffered.getvalue()).decode()
+        headers = {
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "prompt": prompt,
+            "history": history,
+            "image": img_str
+        }
+        response_json = requests.post(
+            url, json=payload, headers=headers).json()
+        response = response_json["response"]
+        history_ = response_json["history"]
+        return response, history_
 
 
 def think_image(description, history):
