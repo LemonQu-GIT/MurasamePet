@@ -1,4 +1,4 @@
-from modelscope.hub.snapshot_download import snapshot_download
+from modelscope import snapshot_download
 import os
 import json
 from rich.console import Console

@@ -17,6 +17,7 @@ dependencies = [
     "rich==14.1.0",
     "torch>=2.0.0",
     "transformers==4.54.1",
+    "modelscope",
     "uvicorn==0.35.0",
 ]
 
