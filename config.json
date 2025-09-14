@@ -1,4 +1,5 @@
 {
+    "openrouter_api_key": "",
     "endpoints": {
         "ollama": "http://localhost:11434",
         "qwen3": "http://localhost:28565/qwen3",

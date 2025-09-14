@@ -53,6 +53,33 @@ python ./api.py
 python ./pet.py
 ```
 
+### 配置 OpenRouter（可选）
+
+如果你想使用 OpenRouter 作为云端 API 提供商：
+
+1. 在 https://openrouter.ai/ 注册并获取 API key
+2. 修改 `./config.json` 中的配置：
+
+```json
+{
+    "openrouter_api_key": "sk-or-v1-xxxxxxxxxxxxx",  // 填入你的 API key
+    "endpoints": {
+        "ollama": "http://localhost:11434",
+        // ... 其他配置保持不变
+    },
+    // ... 其他配置
+}
+```
+
+3. 重启 `api.py` 服务
+
+**注意：**
+- `openrouter_api_key` 留空：使用本地 Ollama 服务
+- `openrouter_api_key` 有值：自动切换到 OpenRouter 云端服务
+- OpenRouter 支持 Qwen3:14b 文本模型
+- OpenRouter 暂不支持 Qwen2.5VL 的图像输入功能
+- 如需使用图像功能，请将 `openrouter_api_key` 留空
+
 ### 注
 
 若 Ollama / api.py 不在本地运行，那么需要在 `./config.json`中修改相关 endpoint 地址
