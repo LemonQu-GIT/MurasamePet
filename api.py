@@ -1,51 +1,117 @@
+#TODO:适配MLX版本的LoRA
 from fastapi import FastAPI, Request
 from datetime import datetime
 import uvicorn
 import requests
 import json
 import torch
+import platform
+import sys
+import os
 from Murasame.utils import get_config
-from transformers import AutoModelForCausalLM, AutoTokenizer
-from transformers.generation.streamers import TextStreamer
+
+# 检测平台和强制要求
+IS_MACOS = platform.system() == "Darwin"
+
+if IS_MACOS:
+    # 在 macOS 上强制要求 MLX
+    try:
+        from mlx_lm.utils import load
+        from mlx_lm.generate import generate
+        ENGINE = "mlx"
+        DEVICE = "mlx"  # MLX 会自动使用 Apple Silicon GPU (Metal)
+        print("Using MLX engine on macOS (Apple Silicon optimized)")
+    except ImportError as e:
+        print(f"❌ CRITICAL ERROR: MLX is required on macOS but not available!")
+        print(f"Import error: {e}")
+        print()
+        print("🔍 SOLUTION:")
+        print("1. Install MLX: pip install mlx-lm")
+        print("2. Or ensure you're using Python with MLX support")
+        print()
+        print("🚨 EXITING: macOS requires MLX for optimal performance.")
+        exit(1)
+else:
+    # 在非 macOS 系统上使用 PyTorch
+    ENGINE = "torch"
+    # 检测设备优先级：MPS > CUDA > CPU
+    if torch.backends.mps.is_available():
+        DEVICE = "mps"
+    elif torch.cuda.is_available():
+        DEVICE = "cuda"
+    else:
+        DEVICE = "cpu"
+    print(f"Using PyTorch engine with device: {DEVICE}")
 
 api = FastAPI()
 
-# 检测设备优先级：MPS > CUDA > CPU
-if torch.backends.mps.is_available():
-    DEVICE = "mps"
-elif torch.cuda.is_available():
-    DEVICE = "cuda"
-else:
-    DEVICE = "cpu"
-DEVICE_ID = "0"
-CUDA_DEVICE = f"{DEVICE}:{DEVICE_ID}" if DEVICE_ID and DEVICE == "cuda" else DEVICE
-
 adapter_path = "./models/Murasame"
 max_seq_length = 2048
-load_in_4bit = True
 
 
 def load_model_and_tokenizer():
     print(f"Loading model and tokenizer from adapter path: {adapter_path}")
-    tokenizer = AutoTokenizer.from_pretrained(adapter_path)
-    model = AutoModelForCausalLM.from_pretrained(
-        adapter_path,
-        device_map=DEVICE if DEVICE != "cpu" else None,
-        torch_dtype=torch.float16 if DEVICE in ["cuda", "mps"] else torch.float32,
-        trust_remote_code=True,
-        load_in_4bit=load_in_4bit,
-    )
-    print("Model prepared for inference.")
+    print(f"Engine: {ENGINE}, Device: {DEVICE}")
+
+    # 使用 MLX 加载模型 - 必须要有 LoRA，因为项目需要 LoRA 效果
+    print("Loading MLX model with LoRA...")
+
+    try:
+        model, tokenizer = load(adapter_path)
+        print("LoRA model loaded successfully with MLX.")
+    except Exception as e:
+        print(f"❌ CRITICAL ERROR: Failed to load LoRA model with MLX!")
+        print(f"Error details: {e}")
+        print()
+        print("🔍 POSSIBLE CAUSES:")
+        print("1. LoRA files are in PyTorch format (incompatible with MLX)")
+        print("2. LoRA files are corrupted or incomplete")
+        print("3. Missing required MLX-compatible LoRA files")
+        print()
+        print("💡 SOLUTION:")
+        print("Update your download logic to download MLX-compatible LoRA files")
+        print("Or convert existing PyTorch LoRA to MLX format")
+        print()
+        print("🚨 EXITING: This application requires LoRA to function properly.")
+        exit(1)  # 直接退出程序
+
     return model, tokenizer
 
 
-def torch_gc():
-    if DEVICE == "cuda" and torch.cuda.is_available():
-        with torch.cuda.device(CUDA_DEVICE):
-            torch.cuda.empty_cache()
-            torch.cuda.ipc_collect()
-    elif DEVICE == "mps" and torch.backends.mps.is_available():
-        torch.mps.empty_cache()
+# 辅助函数：获取当前时间
+def get_current_time():
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+
+# 辅助函数：记录请求日志
+def log_request(prompt):
+    print(f'[{get_current_time()}] Prompt: {prompt}')
+
+
+# 辅助函数：记录响应日志
+def log_response(response):
+    print(f'[{get_current_time()}] Final Response: {response}')
+
+
+# 辅助函数：解析请求
+def parse_request(json_post_list):
+    prompt = json_post_list.get('prompt')
+    history = json_post_list.get('history')
+    return prompt, history
+
+
+# 辅助函数：创建标准响应
+def create_response(response_text, history, status=200):
+    time = get_current_time()
+    return {
+        "response": response_text,
+        "history": history,
+        "status": status,
+        "time": time
+    }
+
+
+# MLX 不需要手动垃圾回收
 
 
 def should_use_openrouter(config):
@@ -94,57 +160,43 @@ def call_openrouter_api(api_key, model, messages, image_url=None):
 
 @api.post("/chat")
 async def create_chat(request: Request):
-    json_post_raw = await request.json()
-    json_post = json.dumps(json_post_raw)
-    json_post_list = json.loads(json_post)
-    prompt = json_post_list.get('prompt')
-    print(f'[{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}] Prompt: {prompt}')
-    history = json_post_list.get('history')
+    json_post_list = await request.json()
+    prompt, history = parse_request(json_post_list)
+    log_request(prompt)
     history = history + [{'role': 'user', 'content': prompt}]
 
+    # 使用 MLX 进行推理
+    print("Using MLX for inference...")
     text = tokenizer.apply_chat_template(
         history,
         tokenize=False,
         add_generation_prompt=True,
         enable_thinking=False,
     )
-    inputs = tokenizer(text, return_tensors="pt").to(DEVICE)
-    print("<<< ", end="", flush=True)
-    with torch.no_grad():
-        outputs = model.generate(
-            **inputs,
-            max_new_tokens=json_post_list.get('max_new_tokens', 2048),
-            temperature=json_post_list.get('temperature', 0.9),
-            top_p=json_post_list.get('top_p', 0.95),
-            top_k=json_post_list.get('top_k', 20),
-            streamer=streamer,
-            pad_token_id=tokenizer.eos_token_id
-        )
 
-    reply = tokenizer.decode(
-        outputs[0][inputs['input_ids'].shape[1]:], skip_special_tokens=True).strip()
+    # MLX LM 推理
+    response = generate(
+        model, tokenizer,
+        prompt=text,
+        max_tokens=json_post_list.get('max_new_tokens', 2048),
+        temp=json_post_list.get('temperature', 0.9),
+        top_p=json_post_list.get('top_p', 0.95),
+        verbose=False
+    )
+    reply = response.strip()
+
     history.append({"role": "assistant", "content": reply})
 
-    time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    answer = {
-        "response": reply,
-        "history": history,
-        "status": 200,
-        "time": time
-    }
-    print(f'[{time}] Final Response: {reply}')
-    return answer
+    log_response(reply)
+    return create_response(reply, history)
 
 
 @api.post("/qwen3")
 async def create_qwen3_chat(request: Request):
-    json_post_raw = await request.json()
-    json_post = json.dumps(json_post_raw)
-    json_post_list = json.loads(json_post)
-    prompt = json_post_list.get('prompt')
+    json_post_list = await request.json()
+    prompt, history = parse_request(json_post_list)
     role = json_post_list.get('role', 'user')
-    print(f'[{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}] Prompt: {prompt}')
-    history = json_post_list.get('history')
+    log_request(prompt)
     if prompt != "":
         history = history + [{'role': role, 'content': prompt}]
 
@@ -159,25 +211,15 @@ async def create_qwen3_chat(request: Request):
     final_response = response.json()['message']['content']
 
     history = history + [{'role': 'assistant', 'content': final_response}]
-    time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    answer = {
-        "response": final_response,
-        "history": history,
-        "status": 200,
-        "time": time
-    }
-    print(f'[{time}] Final Response: {final_response}')
-    return answer
+    log_response(final_response)
+    return create_response(final_response, history)
 
 
 @api.post("/qwenvl")
 async def create_qwenvl_chat(request: Request):
-    json_post_raw = await request.json()
-    json_post = json.dumps(json_post_raw)
-    json_post_list = json.loads(json_post)
-    prompt = json_post_list.get('prompt')
-    print(f'[{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}] Prompt: {prompt}')
-    history = json_post_list.get('history')
+    json_post_list = await request.json()
+    prompt, history = parse_request(json_post_list)
+    log_request(prompt)
 
     if "image" in json_post_list:
         image_url = json_post_list.get('image')
@@ -202,12 +244,9 @@ async def create_qwenvl_chat(request: Request):
             )
             final_response = result['choices'][0]['message']['content']
         except Exception as e:
-            return {
-                "response": f"OpenRouter API error: {str(e)}",
-                "history": history,
-                "status": 500,
-                "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            }
+            error_msg = f"OpenRouter API error: {str(e)}"
+            log_response(error_msg)
+            return create_response(error_msg, history, status=500)
     else:
         # 使用本地 Ollama API
         endpoint_url = config['endpoints']['ollama']
@@ -219,18 +258,11 @@ async def create_qwenvl_chat(request: Request):
         final_response = response.json()['message']['content']
 
     history = history + [{'role': 'assistant', 'content': final_response}]
-    time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    answer = {
-        "response": final_response,
-        "history": history,
-        "status": 200,
-        "time": time
-    }
-    print(f'[{time}] Final Response: {final_response}')
-    return answer
+    log_response(final_response)
+    return create_response(final_response, history)
 
 
 if __name__ == '__main__':
     model, tokenizer = load_model_and_tokenizer()
-    streamer = TextStreamer(tokenizer, skip_prompt=True)
+    # MLX 不使用 TextStreamer
     uvicorn.run(api, host='0.0.0.0', port=28565, workers=1)

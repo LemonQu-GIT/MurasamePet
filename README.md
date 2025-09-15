@@ -29,14 +29,14 @@ ollama pull qwen2.5vl:7b
 python ./download.py
 ```
 
-### 部署 GPT-SoVITS
+### 部署 gpt_sovits
 
-https://github.com/RVC-Boss/GPT-SoVITS
+https://github.com/RVC-Boss/gpt_sovits
 
 运行 ./models/Murasame_SoVITS 中的两个模型
 
 ```shell
-python ./GPT-SoVITS/api_v2.py
+python ./gpt_sovits/api_v2.py
 ```
 
 ### 运行本地 API
@@ -85,7 +85,7 @@ python ./pet.py
 根据你的部署情况，可能需要修改 `./config.json` 中的以下地址：
 
 - **Ollama 地址** (`ollama`)：如果 Ollama 服务不在 `http://localhost:11434` 运行
-- **GPT-SoVITS 地址** (`murasame-sovits`)：确认语音合成的 API 地址，通常是 `http://localhost:9880/tts`
+- **gpt_sovits 地址** (`murasame-sovits`)：确认语音合成的 API 地址，通常是 `http://localhost:9880/tts`
 - **本地 API 地址** (`qwen3`, `qwenvl`, `murasame`)：如果 `api.py` 不在 `http://localhost:28565` 运行
 
 其他配置通常无需修改。
