@@ -31,7 +31,7 @@ on_error() {
     exit "$code"
 }
 
-# Removed conda and pip install functions
+# Removed conda and pip3 install functions
 
 run_wget_quiet() {
     if wget --tries=25 --wait=5 --read-timeout=40 --show-progress "$@" 2>&1; then
@@ -267,8 +267,8 @@ fi
 
 # Python dependencies removed - managed via uv/pyproject.toml
 
-PY_PREFIX=$(python -c "import sys; print(sys.prefix)")
-PYOPENJTALK_PREFIX=$(python -c "import os, pyopenjtalk; print(os.path.dirname(pyopenjtalk.__file__))")
+PY_PREFIX=$(python3 -c "import sys; print(sys.prefix)")
+PYOPENJTALK_PREFIX=$(python3 -c "import os, pyopenjtalk; print(os.path.dirname(pyopenjtalk.__file__))")
 
 echo -e "${INFO}Downloading NLTK Data..."
 rm -rf nltk_data.zip

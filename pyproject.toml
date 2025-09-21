@@ -3,7 +3,7 @@ name = "murasame-pet"
 version = "0.1.0"
 description = "MurasamePet desktop application"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 dependencies = [
     "fastapi==0.116.1",
     "numpy>=1.26.0",
@@ -16,17 +16,17 @@ dependencies = [
     "Requests==2.32.5",
     "rich==14.1.0",
     "torch>=2.0.0",
-    "transformers==4.54.1",
+    "transformers>=4.45.0",
     "modelscope",
     "uvicorn==0.35.0",
-    "scipy",
+    "scipy>=1.14.0",
     "tensorboard",
     "librosa==0.10.2",
     "numba",
     "pytorch-lightning>=2.4",
     "gradio<5",
     "ffmpeg-python",
-    "onnxruntime<1.20.0",
+    "onnxruntime>=1.20.0",
     "tqdm",
     "funasr==1.0.27",
     "cn2an",
@@ -59,14 +59,12 @@ dependencies = [
     "av>=11",
     "ar>=1.0.0",
     "urllib3<2.0.0",
-    "mlx>=0.12.0; sys_platform == 'darwin'", # 只在 macOS 上安装
-    "mlx-lm>=0.12.0; sys_platform == 'darwin'",
-    "mlx>=0.29.1",
-    "mlx-lm>=0.27.1",
+    "mlx>=0.29.1; sys_platform == 'darwin'",
+    "mlx-lm>=0.27.1; sys_platform == 'darwin'",
+    "bigvgan>=2.4.1",
+    "feature-extractor>=0.0.1",
+    "utils>=1.0.2",
 ]
-
-[tool.uv]
-dev-dependencies = []
 
 [tool.hatch.build.targets.wheel]
 packages = ["."]

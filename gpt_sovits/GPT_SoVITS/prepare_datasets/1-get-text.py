@@ -17,7 +17,7 @@ is_half = eval(os.environ.get("is_half", "True")) and torch.cuda.is_available()
 version = os.environ.get("version", None)
 import traceback
 import os.path
-from text.cleaner import clean_text
+from .cleaner import clean_text
 from transformers import AutoModelForMaskedLM, AutoTokenizer
 from tools.my_utils import clean_path
 

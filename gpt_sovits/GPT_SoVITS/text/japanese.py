@@ -77,7 +77,7 @@ except Exception:
     pass
 
 
-from text.symbols import punctuation
+from .symbols import punctuation
 
 # Regular expression matching Japanese without punctuation marks:
 _japanese_characters = re.compile(
