@@ -1,5 +1,5 @@
 {
-    "openrouter_api_key": "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",
+    "openrouter_api_key": "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",
     "endpoints": {
         "ollama": "http://localhost:11434",
         "qwen3": "http://localhost:28565/qwen3",

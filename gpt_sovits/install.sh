@@ -268,7 +268,6 @@ fi
 # Python dependencies removed - managed via uv/pyproject.toml
 
 PY_PREFIX=$(python3 -c "import sys; print(sys.prefix)")
-PYOPENJTALK_PREFIX=$(python3 -c "import os, pyopenjtalk; print(os.path.dirname(pyopenjtalk.__file__))")
 
 echo -e "${INFO}Downloading NLTK Data..."
 rm -rf nltk_data.zip
@@ -277,12 +276,18 @@ unzip -q -o nltk_data -d "$PY_PREFIX"
 rm -rf nltk_data.zip
 echo -e "${SUCCESS}NLTK Data Downloaded"
 
-echo -e "${INFO}Downloading Open JTalk Dict..."
-rm -rf open_jtalk_dic_utf_8-1.11.tar.gz
-run_wget_quiet "$PYOPENJTALK_URL" -O open_jtalk_dic_utf_8-1.11.tar.gz
-tar -xzf open_jtalk_dic_utf_8-1.11.tar.gz -C "$PYOPENJTALK_PREFIX"
-rm -rf open_jtalk_dic_utf_8-1.11.tar.gz
-echo -e "${SUCCESS}Open JTalk Dic Downloaded"
+# Skip Open JTalk Dict download if pyopenjtalk not available
+if python3 -c "import pyopenjtalk" 2>/dev/null; then
+    PYOPENJTALK_PREFIX=$(python3 -c "import os, pyopenjtalk; print(os.path.dirname(pyopenjtalk.__file__))")
+    echo -e "${INFO}Downloading Open JTalk Dict..."
+    rm -rf open_jtalk_dic_utf_8-1.11.tar.gz
+    run_wget_quiet "$PYOPENJTALK_URL" -O open_jtalk_dic_utf_8-1.11.tar.gz
+    tar -xzf open_jtalk_dic_utf_8-1.11.tar.gz -C "$PYOPENJTALK_PREFIX"
+    rm -rf open_jtalk_dic_utf_8-1.11.tar.gz
+    echo -e "${SUCCESS}Open JTalk Dic Downloaded"
+else
+    echo -e "${WARNING}pyopenjtalk not available, skipping Open JTalk Dict download"
+fi
 
 # ROCm WSL fix removed
 

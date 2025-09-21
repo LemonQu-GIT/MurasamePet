@@ -135,8 +135,8 @@ def check_install_executed():
     """检查install.sh/ps1是否执行"""
     system = platform.system()
     if system == "Darwin":
-        # 检查gpt_sovits/GPT_SoVITS/pretrained_models/sv
-        return os.path.exists("gpt_sovits/GPT_SoVITS/pretrained_models/sv")
+        # 检查gpt_sovits/pretrained_models/sv
+        return os.path.exists("gpt_sovits/pretrained_models/sv")
     elif system == "Windows":
         return os.path.exists("GPT_SoVITS/pretrained_models/sv")
     return False
@@ -209,6 +209,8 @@ def run_install():
         cmd = ["bash", "gpt_sovits/install.sh", "--device", "MPS", "--source", "HF", "--download-uvr5"]
         if run_command(cmd):
             log("install.sh执行成功")
+            # 创建配置文件
+            create_tts_config()
         else:
             log("install.sh执行失败", "ERROR")
             sys.exit(1)
@@ -227,9 +229,27 @@ def run_install():
         cmd = ["powershell", "-ExecutionPolicy", "Bypass", "-File", "gpt_sovits/install.ps1", "-Device", "CPU", "-Source", "HF", "-DownloadUVR5"]
         if run_command(cmd):
             log("install.ps1执行成功")
+            # 创建配置文件
+            create_tts_config()
         else:
             log("install.ps1执行失败", "ERROR")
             sys.exit(1)
+
+def create_tts_config():
+    """创建TTS配置文件"""
+    config_path = "gpt_sovits/configs/tts_infer.yaml"
+    pretrained_dir = os.path.abspath("gpt_sovits/pretrained_models")
+    content = f"""device: cpu
+is_half: false
+version: v2
+t2s_weights_path: {pretrained_dir}/s1bert25hz-2kh-longer-epoch=68e-step=50232.ckpt
+vits_weights_path: {pretrained_dir}/s2G488k.pth
+bert_base_path: {pretrained_dir}/chinese-roberta-wwm-ext-large
+cnhuhbert_base_path: {pretrained_dir}/chinese-hubert-base
+"""
+    with open(config_path, "w") as f:
+        f.write(content)
+    log(f"已创建TTS配置文件: {config_path}")
 
 def run_services():
     """运行服务端"""
@@ -241,13 +261,13 @@ def run_services():
         os.makedirs(log_dir)
 
     services = [
-        ("api", "uv run api.py"),
-        ("gpt_sovits", "cd GPT_SoVITS && uv run api_v2.py"),
-        ("pet", "uv run pet.py")
+        ("api", ("uv run python api.py", None)),
+        ("gpt_sovits", ("cd gpt_sovits/GPT_SoVITS && uv run python ../api_v2.py", None)),
+        ("pet", ("uv run python pet.py", None))
     ]
 
     processes = []
-    for name, cmd in services:
+    for name, (cmd, cwd_path) in services:
         service_log_dir = os.path.join(log_dir, name)
         if not os.path.exists(service_log_dir):
             os.makedirs(service_log_dir)
@@ -258,11 +278,7 @@ def run_services():
         log(f"启动服务端: {name}, 日志文件: {log_file}")
 
         with open(log_file, "w") as f:
-            if name == "gpt_sovits":
-                # cd到GPT_SoVITS
-                process = subprocess.Popen(cmd, shell=True, stdout=f, stderr=f, cwd="GPT_SoVITS")
-            else:
-                process = subprocess.Popen(cmd, shell=True, stdout=f, stderr=f)
+            process = subprocess.Popen(cmd, shell=True, stdout=f, stderr=f, cwd=cwd_path)
             processes.append((name, process))
 
     log("所有服务端已启动，日志保存在log目录下")
@@ -389,6 +405,12 @@ def main():
             run_download()
 
         if not check_install_executed():
+            # 先uv sync安装依赖
+            log("执行uv sync以安装依赖...")
+            if not run_command(["uv", "sync"]):
+                log("uv sync失败", "ERROR")
+                sys.exit(1)
+            log("uv sync成功")
             run_install()
 
     else:
