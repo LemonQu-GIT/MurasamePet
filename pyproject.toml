@@ -59,8 +59,10 @@ dependencies = [
     "av>=11",
     "ar>=1.0.0",
     "urllib3<2.0.0",
-    "mlx>=0.12.0; sys_platform == 'darwin'",  # 只在 macOS 上安装
+    "mlx>=0.12.0; sys_platform == 'darwin'", # 只在 macOS 上安装
     "mlx-lm>=0.12.0; sys_platform == 'darwin'",
+    "mlx>=0.29.1",
+    "mlx-lm>=0.27.1",
 ]
 
 [tool.uv]

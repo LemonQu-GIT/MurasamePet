@@ -1,4 +1,3 @@
-#TODO:适配MLX版本的LoRA
 from fastapi import FastAPI, Request
 from datetime import datetime
 import uvicorn
@@ -53,27 +52,68 @@ def load_model_and_tokenizer():
     print(f"Loading model and tokenizer from adapter path: {adapter_path}")
     print(f"Engine: {ENGINE}, Device: {DEVICE}")
 
-    # 使用 MLX 加载模型 - 必须要有 LoRA，因为项目需要 LoRA 效果
-    print("Loading MLX model with LoRA...")
+    if IS_MACOS:
+        # 在 macOS 上使用 MLX + LoRA 的组合方式
+        print("🍎 Loading MLX model with LoRA adapter...")
 
-    try:
-        model, tokenizer = load(adapter_path)
-        print("LoRA model loaded successfully with MLX.")
-    except Exception as e:
-        print(f"❌ CRITICAL ERROR: Failed to load LoRA model with MLX!")
-        print(f"Error details: {e}")
-        print()
-        print("🔍 POSSIBLE CAUSES:")
-        print("1. LoRA files are in PyTorch format (incompatible with MLX)")
-        print("2. LoRA files are corrupted or incomplete")
-        print("3. Missing required MLX-compatible LoRA files")
-        print()
-        print("💡 SOLUTION:")
-        print("Update your download logic to download MLX-compatible LoRA files")
-        print("Or convert existing PyTorch LoRA to MLX format")
-        print()
-        print("🚨 EXITING: This application requires LoRA to function properly.")
-        exit(1)  # 直接退出程序
+        # 基底模型路径 (Qwen3-14B-MLX)
+        base_model_path = "./models/Qwen3-14B-MLX"
+
+        # 检查基底模型是否存在
+        if not os.path.exists(base_model_path):
+            print(f"❌ CRITICAL ERROR: Base model not found at {base_model_path}")
+            print("Please run download.py first to download the required models.")
+            exit(1)
+
+        # 检查 LoRA 适配器是否存在
+        if not os.path.exists(adapter_path):
+            print(f"❌ CRITICAL ERROR: LoRA adapter not found at {adapter_path}")
+            print("Please run download.py first to download the LoRA adapter.")
+            exit(1)
+
+        try:
+            # 使用 MLX 加载基底模型和 LoRA 适配器
+            model, tokenizer = load(base_model_path, adapter_path=adapter_path)
+            print("✅ MLX model with LoRA adapter loaded successfully!")
+            print(f"   - Base model: {base_model_path}")
+            print(f"   - LoRA adapter: {adapter_path}")
+
+        except Exception as e:
+            print(f"❌ CRITICAL ERROR: Failed to load MLX model with LoRA!")
+            print(f"Error details: {e}")
+            print()
+            print("🔍 POSSIBLE CAUSES:")
+            print("1. Base model files are corrupted or incomplete")
+            print("2. LoRA adapter files are incompatible with MLX")
+            print("3. Missing required MLX dependencies")
+            print()
+            print("💡 SOLUTION:")
+            print("1. Re-run download.py to ensure all models are properly downloaded")
+            print("2. Check that MLX and mlx-lm are properly installed")
+            print("3. Verify the LoRA adapter is compatible with the base model")
+            print()
+            print("🚨 EXITING: This application requires working MLX + LoRA setup.")
+            exit(1)
+    else:
+        # 在非 macOS 系统上使用 PyTorch (保持原有逻辑)
+        print("Loading PyTorch model with LoRA...")
+
+        try:
+            model, tokenizer = load(adapter_path)
+            print("LoRA model loaded successfully with PyTorch.")
+        except Exception as e:
+            print(f"❌ CRITICAL ERROR: Failed to load LoRA model with PyTorch!")
+            print(f"Error details: {e}")
+            print()
+            print("🔍 POSSIBLE CAUSES:")
+            print("1. LoRA files are corrupted or incomplete")
+            print("2. Missing required PyTorch dependencies")
+            print()
+            print("💡 SOLUTION:")
+            print("Re-run download.py to ensure LoRA files are properly downloaded")
+            print()
+            print("🚨 EXITING: This application requires LoRA to function properly.")
+            exit(1)
 
     return model, tokenizer
 
