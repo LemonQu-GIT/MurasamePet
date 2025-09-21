@@ -54,8 +54,24 @@ def query(prompt: str, history: list[dict] = [], role: str = "user", try_reduce_
     }
     trys = 0
     while True:
-        response_json = requests.post(
-            url, json=payload, headers=headers).json()
+        response = None
+        try:
+            response = requests.post(url, json=payload, headers=headers)
+            print(f"Chat API response status: {response.status_code}")
+            print(f"Chat API response headers: {response.headers}")
+            print(f"Chat API response text (first 500 chars): {response.text[:500]}")
+            response_json = response.json()
+        except requests.exceptions.JSONDecodeError as e:
+            print(f"JSON decode error from chat API: {e}")
+            if response:
+                print(f"Response status: {response.status_code}")
+                print(f"Response text: {response.text}")
+                raise Exception(f"Chat API returned invalid JSON. Status: {response.status_code}, Response: {response.text[:500]}")
+            else:
+                raise Exception(f"Chat API returned invalid JSON. No response received.")
+        except Exception as e:
+            print(f"Error calling chat API: {e}")
+            raise
         response = response_json["response"]
         history_ = response_json["history"]
         if response != "":
@@ -173,7 +189,7 @@ def get_translate(sentence: str):
 
 def get_emotion(sentence: str, history: list[dict] = []):
     print(f"emotion >> {len(history)}")
-    sys_prompt = f"你是一个情感分析助手，负责分析“丛雨”说的话的情感。你现在需要将用户输入的句子进行分析，综合用户的输入和丛雨的输出返回一个丛雨情感的标签。所有供你参考的标签有{'，'.join(os.listdir('./reference_voices'))}。你需要直接返回情感标签，不需要其他任何内容。"
+    sys_prompt = f"你是一个情感分析助手，负责分析“丛雨”说的话的情感。你现在需要将用户输入的句子进行分析，综合用户的输入和丛雨的输出返回一个丛雨情感的标签。所有供你参考的标签有{'，'.join(os.listdir('./models/Murasame_SoVITS/reference_voices'))}。你需要直接返回情感标签，不需要其他任何内容。"
     if history == []:
         history = [{"role": "system", "content": sys_prompt}]
     if history[0]["role"] != "system":
@@ -181,7 +197,7 @@ def get_emotion(sentence: str, history: list[dict] = []):
     emotion, history = query(prompt=sentence+"/no_think", history=history,
                              url=qwen3_endpoint)
     emotion = emotion.split("</think>")[-1].strip()
-    if emotion not in os.listdir('./reference_voices'):
+    if emotion not in os.listdir('./models/Murasame_SoVITS/reference_voices'):
         print(f"??? {emotion} not in reference voices")
         emotion = "平静"
     return emotion, history
@@ -251,7 +267,10 @@ def generate_tts(sentence: str, emotion):
     response = requests.post(
         murasame_sovits_endpoint, json=params)
     sentence_md5 = hashlib.md5(sentence.encode()).hexdigest()
-    with open(f"./voices/{sentence_md5}.wav", "wb") as f:
+    voices_dir = os.path.join(os.getcwd(), 'voices')
+    os.makedirs(voices_dir, exist_ok=True)
+    voice_path = os.path.join(voices_dir, f"{sentence_md5}.wav")
+    with open(voice_path, "wb") as f:
         f.write(response.content)
     return sentence_md5
 

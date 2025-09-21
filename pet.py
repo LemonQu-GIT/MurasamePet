@@ -43,10 +43,25 @@ class Murasame(QLabel):
         self.setAttribute(Qt.WA_TranslucentBackground)
 
         cv_img = generate.generate_fgimage(target="ムラサメb",
-                                           embeddings_layers=[1717, 1475, 1261])
+                                            embeddings_layers=[1717, 1475, 1261])
         pixmap = self.cvimg_to_qpixmap(cv_img)
-        pixmap = pixmap.scaled(pixmap.width(
-        ) // 2, pixmap.height() // 2, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+
+        # 考虑 HiDPI 缩放
+        scale_factor = 1.0
+        if hasattr(app, 'devicePixelRatio'):
+            scale_factor = app.devicePixelRatio()
+        elif hasattr(app.primaryScreen(), 'devicePixelRatio'):
+            scale_factor = app.primaryScreen().devicePixelRatio()
+
+        # 在 HiDPI 屏幕上进一步缩小
+        if scale_factor > 1.0:
+            pixmap = pixmap.scaled(pixmap.width() // int(scale_factor * 2),
+                                   pixmap.height() // int(scale_factor * 2),
+                                   Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        else:
+            pixmap = pixmap.scaled(pixmap.width() // 2, pixmap.height() // 2,
+                                   Qt.KeepAspectRatio, Qt.SmoothTransformation)
+
         self.setPixmap(pixmap)
         self.resize(pixmap.size())
 
@@ -64,7 +79,19 @@ class Murasame(QLabel):
         self.display_text = ""
         self.text_font = QFont()
         self.text_font.setFamily("思源黑体 CN Bold")
-        self.text_font.setPointSize(24)
+
+        # 根据 HiDPI 调整字体大小
+        scale_factor = 1.0
+        if hasattr(app, 'devicePixelRatio'):
+            scale_factor = app.devicePixelRatio()
+        elif hasattr(app.primaryScreen(), 'devicePixelRatio'):
+            scale_factor = app.primaryScreen().devicePixelRatio()
+
+        font_size = 24
+        if scale_factor > 1.0:
+            font_size = int(24 / scale_factor)
+        self.text_font.setPointSize(font_size)
+
         self.text_x_offset = 0
         self.text_y_offset = 0
         QFontDatabase.addApplicationFont("./思源黑体Bold.otf")
@@ -81,7 +108,7 @@ class Murasame(QLabel):
         self.input_buffer = ""
         self.preedit_text = ""
 
-        self.latest_response = ""
+        self.latest_response = "【 丛雨 】\n  主人，你好呀！"
 
     def event(self, event):
         if event.type() == QEvent.WindowActivate:
@@ -117,7 +144,25 @@ class Murasame(QLabel):
                 self.touch_head = False
                 self.head_press_x = None
                 self.setCursor(Qt.ArrowCursor)
-            if event.y() > 277:
+            # 检查是否点击了文本区域
+            text_clicked = False
+            if self.display_text:
+                # 计算文本区域
+                rect = self.rect()
+                text_rect = rect.adjusted(
+                    self.text_x_offset,
+                    self.text_y_offset,
+                    self.text_x_offset,
+                    -rect.height()//2 + self.text_y_offset
+                )
+                # 扩大点击区域，包含文本周围
+                expanded_rect = text_rect.adjusted(-20, -20, 20, 20)
+                if expanded_rect.contains(event.pos()):
+                    text_clicked = True
+
+            # 根据窗口高度调整输入区域阈值，或点击文本区域
+            input_threshold = int(self.height() * 0.7)
+            if event.y() > input_threshold or text_clicked:
                 self.input_mode = True
                 self.input_buffer = ""
                 self.display_text = "【 LemonQu 】\n  ..."
@@ -149,6 +194,17 @@ class Murasame(QLabel):
             self.setCursor(Qt.ArrowCursor)
 
     def show_text(self, text: str, x_offset: int = 140, y_offset: int = -100, typing: bool = True, typing_prefix: str = "【 丛雨 】\n  "):
+        # 根据缩放调整默认偏移量
+        scale_factor = 1.0
+        if hasattr(app, 'devicePixelRatio'):
+            scale_factor = app.devicePixelRatio()
+        elif hasattr(app.primaryScreen(), 'devicePixelRatio'):
+            scale_factor = app.primaryScreen().devicePixelRatio()
+
+        if scale_factor > 1.0:
+            x_offset = int(x_offset / scale_factor)
+            y_offset = int(y_offset / scale_factor)
+
         self.text_x_offset = x_offset
         self.text_y_offset = y_offset
         self.typing_prefix = typing_prefix
@@ -220,7 +276,14 @@ class Murasame(QLabel):
                 )
                 align_flag = Qt.AlignLeft | Qt.AlignBottom if '\n' in self.display_text else Qt.AlignHCenter | Qt.AlignBottom
 
-                border_size = 2
+                # 根据缩放调整边框大小
+                scale_factor = 1.0
+                if hasattr(app, 'devicePixelRatio'):
+                    scale_factor = app.devicePixelRatio()
+                elif hasattr(app.primaryScreen(), 'devicePixelRatio'):
+                    scale_factor = app.primaryScreen().devicePixelRatio()
+
+                border_size = max(1, int(2 / scale_factor))
                 painter.setPen(QColor(44, 22, 28))
                 for dx, dy in [(-border_size, 0), (border_size, 0), (0, -border_size), (0, border_size),
                                (border_size, -border_size), (border_size, border_size),
@@ -248,7 +311,14 @@ class Murasame(QLabel):
             )
             align_flag = Qt.AlignLeft | Qt.AlignBottom if '\n' in self.display_text else Qt.AlignHCenter | Qt.AlignBottom
 
-            border_size = 2
+            # 根据缩放调整边框大小
+            scale_factor = 1.0
+            if hasattr(app, 'devicePixelRatio'):
+                scale_factor = app.devicePixelRatio()
+            elif hasattr(app.primaryScreen(), 'devicePixelRatio'):
+                scale_factor = app.primaryScreen().devicePixelRatio()
+
+            border_size = max(1, int(2 / scale_factor))
             painter.setPen(QColor(44, 22, 28))
             for dx, dy in [(-border_size, 0), (border_size, 0), (0, -border_size), (0, border_size),
                            (border_size, -border_size), (border_size, border_size),
@@ -305,7 +375,8 @@ class Murasame(QLabel):
 
     def on_llm_result(self, result, history, emotion_history, embeddings_history, embeddings_layers, raw_response):
         raw_response_md5 = hashlib.md5(raw_response.encode()).hexdigest()
-        QSound.play(f"./voices/{raw_response_md5}.wav")
+        voice_path = os.path.join(os.getcwd(), 'voices', f"{raw_response_md5}.wav")
+        QSound.play(voice_path)
         self.show_text(result, typing=True)
         self.latest_response = result
         self.input_buffer = ""
@@ -348,9 +419,22 @@ class Murasame(QLabel):
         cv_img = generate.generate_fgimage(
             target=f"ムラサメ{target}", embeddings_layers=embeddings_layers)
         pixmap_new = self.cvimg_to_qpixmap(cv_img)
-        pixmap_new = pixmap_new.scaled(
-            pixmap_new.width() // 2, pixmap_new.height() // 2,
-            Qt.KeepAspectRatio, Qt.SmoothTransformation)
+
+        # 考虑 HiDPI 缩放
+        scale_factor = 1.0
+        if hasattr(app, 'devicePixelRatio'):
+            scale_factor = app.devicePixelRatio()
+        elif hasattr(app.primaryScreen(), 'devicePixelRatio'):
+            scale_factor = app.primaryScreen().devicePixelRatio()
+
+        # 在 HiDPI 屏幕上进一步缩小
+        if scale_factor > 1.0:
+            pixmap_new = pixmap_new.scaled(pixmap_new.width() // int(scale_factor * 2),
+                                           pixmap_new.height() // int(scale_factor * 2),
+                                           Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        else:
+            pixmap_new = pixmap_new.scaled(pixmap_new.width() // 2, pixmap_new.height() // 2,
+                                           Qt.KeepAspectRatio, Qt.SmoothTransformation)
 
         pixmap_old = self.pixmap()
         if pixmap_old is None:
@@ -531,7 +615,18 @@ if __name__ == "__main__":
 
     app = QApplication(sys.argv)
     murasame = Murasame()
-    murasame.move(1200, 400)
+
+    # 动态计算窗口位置，确保在屏幕内
+    screen = app.primaryScreen()
+    screen_geometry = screen.availableGeometry()
+    window_width = murasame.width()
+    window_height = murasame.height()
+
+    # 放在右下角，但留出一些边距
+    x = screen_geometry.width() - window_width - 20
+    y = screen_geometry.height() - window_height - 40  # 留出任务栏空间
+
+    murasame.move(x, y)
     murasame.show()
 
     tray_icon = QSystemTrayIcon(QIcon("icon.png"), parent=app)

@@ -160,7 +160,7 @@ def should_use_openrouter(config):
     return bool(api_key.strip())  # 有非空值就使用 OpenRouter
 
 
-def call_openrouter_api(api_key, model, messages, image_url=None):
+def call_openrouter_api(api_key, model, messages, image_url=None, max_tokens=2048):
     """调用 OpenRouter API"""
     headers = {
         "Authorization": f"Bearer {api_key}",
@@ -189,7 +189,7 @@ def call_openrouter_api(api_key, model, messages, image_url=None):
         "model": model,
         "messages": messages,
         "temperature": 0.7,
-        "max_tokens": 2048
+        "max_tokens": max_tokens
     }
 
     # 硬编码 OpenRouter 地址
@@ -219,8 +219,6 @@ async def create_chat(request: Request):
         model, tokenizer,
         prompt=text,
         max_tokens=json_post_list.get('max_new_tokens', 2048),
-        temp=json_post_list.get('temperature', 0.9),
-        top_p=json_post_list.get('top_p', 0.95),
         verbose=False
     )
     reply = response.strip()
@@ -240,15 +238,70 @@ async def create_qwen3_chat(request: Request):
     if prompt != "":
         history = history + [{'role': role, 'content': prompt}]
 
-    # Qwen3-14b 强制使用本地 LoRA 以保持角色特色
     config = get_config()
-    endpoint_url = config['endpoints']['ollama']
-    response = requests.post(
-        f"{endpoint_url}/api/chat",
-        json={"model": "qwen3:14b", "messages": history,
-              "stream": False, "options": {"keep_alive": -1}},
-    )
-    final_response = response.json()['message']['content']
+
+    if should_use_openrouter(config):
+        # 优先使用 OpenRouter 的 qwen3-235b 模型
+        api_key = config.get('openrouter_api_key', '')
+        try:
+            result = call_openrouter_api(
+                api_key,
+                "qwen/qwen3-235b-a22b-2507",  # 用户指定的模型
+                history,
+                max_tokens=4096  # 辅助功能可能需要更多 tokens
+            )
+            final_response = result['choices'][0]['message']['content']
+        except Exception as e:
+            print(f"OpenRouter API failed, falling back to Ollama: {e}")
+            # 回退到 Ollama
+            endpoint_url = config['endpoints']['ollama']
+            response = None
+            try:
+                response = requests.post(
+                    f"{endpoint_url}/api/chat",
+                    json={"model": "qwen3:14b", "messages": history,
+                          "stream": False, "options": {"keep_alive": -1}},
+                )
+                print(f"Ollama response status: {response.status_code}")
+                print(f"Ollama response headers: {response.headers}")
+                print(f"Ollama response text (first 500 chars): {response.text[:500]}")
+                final_response = response.json()['message']['content']
+            except requests.exceptions.JSONDecodeError as e:
+                print(f"JSON decode error from Ollama: {e}")
+                if response:
+                    print(f"Response status: {response.status_code}")
+                    print(f"Response text: {response.text}")
+                    raise Exception(f"Ollama API returned invalid JSON. Status: {response.status_code}, Response: {response.text[:500]}")
+                else:
+                    raise Exception("Ollama API returned invalid JSON. No response received.")
+            except Exception as e:
+                print(f"Error calling Ollama API: {e}")
+                raise
+    else:
+        # 使用 Ollama
+        endpoint_url = config['endpoints']['ollama']
+        response = None
+        try:
+            response = requests.post(
+                f"{endpoint_url}/api/chat",
+                json={"model": "qwen3:14b", "messages": history,
+                      "stream": False, "options": {"keep_alive": -1}},
+            )
+            print(f"Ollama response status: {response.status_code}")
+            print(f"Ollama response headers: {response.headers}")
+            print(f"Ollama response text (first 500 chars): {response.text[:500]}")
+            final_response = response.json()['message']['content']
+        except requests.exceptions.JSONDecodeError as e:
+            print(f"JSON decode error from Ollama: {e}")
+            if response:
+                print(f"Response status: {response.status_code}")
+                print(f"Response text: {response.text}")
+                raise Exception(f"Ollama API returned invalid JSON. Status: {response.status_code}, Response: {response.text[:500]}")
+            else:
+                raise Exception("Ollama API returned invalid JSON. No response received.")
+        except Exception as e:
+            print(f"Error calling Ollama API: {e}")
+            raise
 
     history = history + [{'role': 'assistant', 'content': final_response}]
     log_response(final_response)
