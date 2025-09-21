@@ -246,7 +246,7 @@ async def create_qwen3_chat(request: Request):
         try:
             result = call_openrouter_api(
                 api_key,
-                "qwen/qwen3-235b-a22b-2507",  # 用户指定的模型
+                "qwen/qwen3-235b-a22b",  # 用户指定的模型
                 history,
                 max_tokens=4096  # 辅助功能可能需要更多 tokens
             )

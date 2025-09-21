@@ -7,7 +7,7 @@ https://www.bilibili.com/video/BV1vjeGzfE1w
 ### 安装包
 
 ```shell
-pip install -r ./requirements.txt
+uv sync
 ```
 
 ### 安装 Ollama （非必须）
@@ -36,7 +36,7 @@ https://github.com/RVC-Boss/gpt_sovits
 运行 ./models/Murasame_SoVITS 中的两个模型
 
 ```shell
-python ./gpt_sovits/api_v2.py
+uv run ./gpt_sovits/api_v2.py
 ```
 
 ### 运行本地 API
