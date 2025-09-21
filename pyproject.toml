@@ -3,7 +3,7 @@ name = "murasame-pet"
 version = "0.1.0"
 description = "MurasamePet desktop application"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = "==3.10.*"
 dependencies = [
     "fastapi==0.116.1",
     "numpy>=1.26.0",
@@ -64,6 +64,8 @@ dependencies = [
     "bigvgan>=2.4.1",
     "feature-extractor>=0.0.1",
     "utils>=1.0.2",
+    "standard-aifc>=3.13.0",
+    "wandb>=0.22.0",
 ]
 
 [tool.hatch.build.targets.wheel]

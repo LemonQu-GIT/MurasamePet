@@ -15,7 +15,7 @@
     1.对于macOS，是否安装了ARM架构的Homebrew?
     2.对于Windows设备：是否安装了CUDA?
     3.是否有安装uv（不可是pip安装的uv）？
-    4.python版本是否>=3.10?
+    4.python版本是否==3.10?
     5.download.py是否已经执行？
     6.gpt_sovits/install.sh是否已经执行？（windows则为gpt_sovits/install.ps1）
     (对于是否已经执行，你可以去读取这两个脚本并自己选择指标进行判断)
@@ -26,11 +26,11 @@
         windows:直接结束进程并告诉用户问题和安装方式
         macOS：使用homebrew安装uv和python（安装python前需要先使用brew安装mecab）,同时在用户知情且同意的情况下使用pip3 uninstall uv命令卸载pip安装的uv，同时继续下一条（即5.4）
     4.若因4.5导致跳转的，执行download.py以安装项目所需模型，
-    5.若因4.6导致跳转的，视平台执行install.sh或install.ps1
+    5.若因4.6导致跳转的，视平台执行install.sh或install.ps1（macOS平台执行install.sh之前需brew install wget）
 6.若被跳转到此步，则说明环境不存在问题，开始运行，按照如下步骤进行处理：
     1.uv sync
     2.uv run api.py
-    3.cd GPT_SoVITS & uv run api_v2.py
+    3.cd gpt_sovits & uv run api_v2.py
     4.uv run pet.py
   以下是一些提示：
     1.对于sync命令，应当阻塞进程，直到执行完毕且无报错再运行下面的三条命令，若有报错需直接打印在控制台并结束进程（sync指令每次都需要运行，避免由于更新导致的依赖变化）

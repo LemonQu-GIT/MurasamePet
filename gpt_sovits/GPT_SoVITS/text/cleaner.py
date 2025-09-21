@@ -1,11 +1,11 @@
-from . import cleaned_text_to_sequence
+from text import cleaned_text_to_sequence
 import os
 # if os.environ.get("version","v1")=="v1":
 #     from text import chinese
-#     from .symbols import symbols
+#     from text.symbols import symbols
 # else:
 #     from text import chinese2 as chinese
-#     from .symbols2 import symbols
+#     from text.symbols2 import symbols
 
 from text import symbols as symbols_v1
 from text import symbols2 as symbols_v2

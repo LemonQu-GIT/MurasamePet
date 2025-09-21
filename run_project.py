@@ -123,9 +123,9 @@ def get_python_version():
     return f"{version.major}.{version.minor}.{version.micro}"
 
 def check_python_version():
-    """检查Python版本 >= 3.10"""
+    """检查Python版本 == 3.10"""
     version = sys.version_info
-    return (version.major, version.minor) >= (3, 10)
+    return (version.major, version.minor) == (3, 10)
 
 def check_download_executed():
     """检查download.py是否执行"""
@@ -175,6 +175,32 @@ def install_uv_macos():
         log("Python和mecab安装失败", "ERROR")
         sys.exit(1)
 
+
+def install_python310_macos():
+    """macOS安装Python 3.10"""
+    log("使用Homebrew安装Python 3.10...")
+    if run_command(["brew", "install", "python@3.10"]):
+        log("Python 3.10安装成功")
+        # 取消链接Python 3.13，如果存在
+        run_command(["brew", "unlink", "python@3.13"])
+        # 链接Python 3.10
+        if run_command(["brew", "link", "python@3.10", "--force"]):
+            log("Python 3.10已链接为默认python3")
+        else:
+            log("链接Python 3.10失败，尝试设置PATH")
+            # 设置环境变量
+            zshrc = os.path.expanduser("~/.zshrc")
+            lines = [
+                'export PATH="/opt/homebrew/opt/python@3.10/libexec/bin:$PATH"'
+            ]
+            with open(zshrc, "a") as f:
+                f.write("\n".join(lines) + "\n")
+            log("Python 3.10环境变量已添加到~/.zshrc")
+        log("请重新启动终端或运行 'source ~/.zshrc' 以应用更改")
+    else:
+        log("Python 3.10安装失败", "ERROR")
+        sys.exit(1)
+
 def uninstall_pip_uv():
     """卸载pip安装的uv"""
     log("卸载pip安装的uv...")
@@ -193,6 +219,13 @@ def run_install():
     """运行install.sh或install.ps1"""
     system = platform.system()
     if system == "Darwin":
+        log("macOS: 安装wget...")
+        if run_command(["brew", "install", "wget"]):
+            log("wget安装成功")
+        else:
+            log("wget安装失败", "ERROR")
+            sys.exit(1)
+
         log("运行install.sh...")
         # 修改install.sh中的python为python3
         try:
@@ -206,7 +239,7 @@ def run_install():
         except Exception as e:
             log(f"修改install.sh失败: {e}", "ERROR")
         # 需要参数，假设默认值
-        cmd = ["bash", "gpt_sovits/install.sh", "--device", "MPS", "--source", "HF", "--download-uvr5"]
+        cmd = ["bash", "gpt_sovits/install.sh", "--device", "MPS", "--source", "ModelScope", "--download-uvr5"]
         if run_command(cmd):
             log("install.sh执行成功")
             # 创建配置文件
@@ -238,18 +271,30 @@ def run_install():
 def create_tts_config():
     """创建TTS配置文件"""
     config_path = "gpt_sovits/configs/tts_infer.yaml"
-    pretrained_dir = os.path.abspath("gpt_sovits/pretrained_models")
-    content = f"""device: cpu
-is_half: false
-version: v2
-t2s_weights_path: {pretrained_dir}/s1bert25hz-2kh-longer-epoch=68e-step=50232.ckpt
-vits_weights_path: {pretrained_dir}/s2G488k.pth
-bert_base_path: {pretrained_dir}/chinese-roberta-wwm-ext-large
-cnhuhbert_base_path: {pretrained_dir}/chinese-hubert-base
+    pretrained_dir = os.path.abspath("gpt_sovits/GPT_SoVITS/pretrained_models")
+
+    # 根据平台和硬件设置设备
+    system = platform.system()
+    if system == "Darwin":
+        device = "mps"  # macOS 使用 MPS
+    elif system == "Windows" and check_cuda():
+        device = "cuda"  # Windows 有 CUDA 使用 CUDA
+    else:
+        device = "cpu"  # 其他情况使用 CPU
+
+    # 创建包含 custom 键的配置，这样 TTS_Config 会优先使用它
+    content = f"""custom:
+  device: {device}
+  is_half: false
+  version: v2
+  t2s_weights_path: {pretrained_dir}/s1bert25hz-2kh-longer-epoch=68e-step=50232.ckpt
+  vits_weights_path: {pretrained_dir}/s2G488k.pth
+  bert_base_path: {pretrained_dir}/chinese-roberta-wwm-ext-large
+  cnhuhbert_base_path: {pretrained_dir}/chinese-hubert-base
 """
     with open(config_path, "w") as f:
         f.write(content)
-    log(f"已创建TTS配置文件: {config_path}")
+    log(f"已创建TTS配置文件: {config_path} (设备: {device})")
 
 def run_services():
     """运行服务端"""
@@ -262,7 +307,7 @@ def run_services():
 
     services = [
         ("api", ("uv run python api.py", None)),
-        ("gpt_sovits", ("cd gpt_sovits/GPT_SoVITS && uv run python ../api_v2.py", None)),
+        ("gpt_sovits", ("cd gpt_sovits && uv run python api_v2.py", None)),
         ("pet", ("uv run python pet.py", None))
     ]
 
@@ -369,7 +414,7 @@ def main():
 
     if not check_python_version():
         need_config = True
-        config_reasons.append("Python版本 < 3.10")
+        config_reasons.append("Python版本 != 3.10")
 
     if not check_download_executed():
         need_config = True
@@ -388,7 +433,9 @@ def main():
         if system == "Darwin":
             if not check_homebrew():
                 install_homebrew()
-            if not check_uv() or not check_python_version():
+            if not check_python_version():
+                install_python310_macos()
+            if not check_uv():
                 install_uv_macos()
                 if check_uv():  # 如果pip安装了uv，卸载
                     uninstall_pip_uv()

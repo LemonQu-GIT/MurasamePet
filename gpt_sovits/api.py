@@ -150,7 +150,7 @@ sys.path.append(now_dir)
 sys.path.append("%s/GPT_SoVITS" % (now_dir))
 
 import signal
-from .LangSegmenter import LangSegmenter
+from text.LangSegmenter import LangSegmenter
 from time import time as ttime
 import torch
 import torchaudio
@@ -167,7 +167,7 @@ from module.models import Generator, SynthesizerTrn, SynthesizerTrnV3
 from peft import LoraConfig, get_peft_model
 from GPT_SoVITS.AR.models.t2s_lightning_module import Text2SemanticLightningModule
 from text import cleaned_text_to_sequence
-from .cleaner import clean_text
+from text.cleaner import clean_text
 from module.mel_processing import spectrogram_torch
 import config as global_config
 import logging
