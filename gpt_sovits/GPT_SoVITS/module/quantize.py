@@ -12,7 +12,7 @@ import typing as tp
 import torch
 from torch import nn
 
-from .core_vq import ResidualVectorQuantization
+from module.core_vq import ResidualVectorQuantization
 
 
 @dataclass

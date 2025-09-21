@@ -5,9 +5,9 @@ import cn2an
 from pypinyin import lazy_pinyin, Style
 from pypinyin.contrib.tone_convert import to_finals_tone3, to_initials
 
-from .symbols import punctuation
-from .tone_sandhi import ToneSandhi
-from .zh_normalization.text_normlization import TextNormalizer
+from text.symbols import punctuation
+from text.tone_sandhi import ToneSandhi
+from text.zh_normalization.text_normlization import TextNormalizer
 
 normalizer = lambda x: cn2an.transform(x, "an2cn")
 
@@ -28,7 +28,7 @@ import jieba_fast.posseg as psg
 is_g2pw = True  # True if is_g2pw_str.lower() == 'true' else False
 if is_g2pw:
     # print("当前使用g2pw进行拼音推理")
-    from .g2pw import G2PWPinyin, correct_pronunciation
+    from text.g2pw import G2PWPinyin, correct_pronunciation
 
     parent_directory = os.path.dirname(current_file_path)
     g2pw = G2PWPinyin(

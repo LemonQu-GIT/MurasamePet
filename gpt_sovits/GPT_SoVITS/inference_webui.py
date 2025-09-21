@@ -30,7 +30,7 @@ import warnings
 
 import torch
 import torchaudio
-from .LangSegmenter import LangSegmenter
+from text.LangSegmenter import LangSegmenter
 
 logging.getLogger("markdown_it").setLevel(logging.ERROR)
 logging.getLogger("urllib3").setLevel(logging.ERROR)
@@ -121,7 +121,7 @@ from time import time as ttime
 from GPT_SoVITS.AR.models.t2s_lightning_module import Text2SemanticLightningModule
 from peft import LoraConfig, get_peft_model
 from text import cleaned_text_to_sequence
-from .cleaner import clean_text
+from text.cleaner import clean_text
 
 from tools.assets import css, js, top_html
 from tools.i18n.i18n import I18nAuto, scan_language_list
