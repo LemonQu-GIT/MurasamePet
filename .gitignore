@@ -183,6 +183,3 @@ gpt_sovits/GPT_SoVITS/text/G2PWModel/
 gpt_sovits/tools/uvr5/uvr5_weights/
 gpt_sovits/tools/asr/models/
 models/
-
-# Configuration files with sensitive data
-config.json
