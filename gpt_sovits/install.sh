@@ -31,7 +31,7 @@ on_error() {
     exit "$code"
 }
 
-# Removed conda and pip3 install functions
+# Removed conda and pip install functions
 
 run_wget_quiet() {
     if wget --tries=25 --wait=5 --read-timeout=40 --show-progress "$@" 2>&1; then
