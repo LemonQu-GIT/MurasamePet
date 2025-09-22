@@ -226,6 +226,10 @@ def uninstall_pip_uv():
 
 def run_download():
     """运行download.py"""
+    log("添加modelscope依赖...")
+    if not run_command(["uv", "add", "modelscope"]):
+        log("uv add modelscope失败", "ERROR")
+        sys.exit(1)
     log("运行download.py...")
     if run_command([sys.executable, "download.py"]):
         log("download.py执行成功")
