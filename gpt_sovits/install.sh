@@ -31,7 +31,7 @@ on_error() {
     exit "$code"
 }
 
-# Removed conda and pip install functions
+# Removed conda and pip3 install functions
 
 run_wget_quiet() {
     if wget --tries=25 --wait=5 --read-timeout=40 --show-progress "$@" 2>&1; then
@@ -270,19 +270,29 @@ fi
 PY_PREFIX=$(python3 -c "import sys; print(sys.prefix)")
 PYOPENJTALK_PREFIX=$(python3 -c "import os, pyopenjtalk; print(os.path.dirname(pyopenjtalk.__file__))")
 
-echo -e "${INFO}Downloading NLTK Data..."
-rm -rf nltk_data.zip
-run_wget_quiet "$NLTK_URL" -O nltk_data.zip
-unzip -q -o nltk_data -d "$PY_PREFIX"
-rm -rf nltk_data.zip
-echo -e "${SUCCESS}NLTK Data Downloaded"
+if [ ! -d "$PY_PREFIX/nltk_data" ]; then
+    echo -e "${INFO}Downloading NLTK Data..."
+    rm -rf nltk_data.zip
+    run_wget_quiet "$NLTK_URL" -O nltk_data.zip
+    unzip -q -o nltk_data -d "$PY_PREFIX"
+    rm -rf nltk_data.zip
+    echo -e "${SUCCESS}NLTK Data Downloaded"
+else
+    echo -e "${INFO}NLTK Data Exists"
+    echo -e "${INFO}Skip Downloading NLTK Data"
+fi
 
-echo -e "${INFO}Downloading Open JTalk Dict..."
-rm -rf open_jtalk_dic_utf_8-1.11.tar.gz
-run_wget_quiet "$PYOPENJTALK_URL" -O open_jtalk_dic_utf_8-1.11.tar.gz
-tar -xzf open_jtalk_dic_utf_8-1.11.tar.gz -C "$PYOPENJTALK_PREFIX"
-rm -rf open_jtalk_dic_utf_8-1.11.tar.gz
-echo -e "${SUCCESS}Open JTalk Dic Downloaded"
+if [ ! -d "$PYOPENJTALK_PREFIX/open_jtalk_dic_utf_8-1.11" ]; then
+    echo -e "${INFO}Downloading Open JTalk Dict..."
+    rm -rf open_jtalk_dic_utf_8-1.11.tar.gz
+    run_wget_quiet "$PYOPENJTALK_URL" -O open_jtalk_dic_utf_8-1.11.tar.gz
+    tar -xzf open_jtalk_dic_utf_8-1.11.tar.gz -C "$PYOPENJTALK_PREFIX"
+    rm -rf open_jtalk_dic_utf_8-1.11.tar.gz
+    echo -e "${SUCCESS}Open JTalk Dic Downloaded"
+else
+    echo -e "${INFO}Open JTalk Dic Exists"
+    echo -e "${INFO}Skip Downloading Open JTalk Dic"
+fi
 
 # ROCm WSL fix removed
 

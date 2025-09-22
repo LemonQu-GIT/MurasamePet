@@ -136,7 +136,25 @@ def check_install_executed():
     system = platform.system()
     if system == "Darwin":
         # 检查gpt_sovits/pretrained_models/sv
-        return os.path.exists("gpt_sovits/pretrained_models/sv")
+        if not os.path.exists("gpt_sovits/pretrained_models/sv"):
+            return False
+        # 检查NLTK数据
+        try:
+            import sys
+            py_prefix = sys.prefix
+            if not os.path.exists(os.path.join(py_prefix, "nltk_data")):
+                return False
+        except:
+            pass
+        # 检查Open JTalk Dic
+        try:
+            import pyopenjtalk
+            pyopenjtalk_prefix = os.path.dirname(pyopenjtalk.__file__)
+            if not os.path.exists(os.path.join(pyopenjtalk_prefix, "open_jtalk_dic_utf_8-1.11")):
+                return False
+        except:
+            pass
+        return True
     elif system == "Windows":
         return os.path.exists("GPT_SoVITS/pretrained_models/sv")
     return False
@@ -365,9 +383,9 @@ def main():
         log("根据配置，该项目所有模型运行在云端")
     elif not api_key and not all_endpoints_local:
         skip_device_check_23 = True
-        log("根据配置，该项目模型运行在本地，请注意内存消耗")
+        log("根据配置，该项目部分模型运行在本地，请注意内存消耗")
     else:
-        log("根据配置，该项目模型运行在本地，请注意内存消耗")
+        log("根据配置，该项目部分模型运行在本地，请注意内存消耗")
 
     # 2. 检测设备
     system, machine, processor, memory, gpu = get_system_info()
