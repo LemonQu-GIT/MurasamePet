@@ -5,7 +5,7 @@ import json
 import base64
 import hashlib
 from io import BytesIO
-from utils import get_config
+from Murasame.utils import get_config
 
 qwen3_endpoint = get_config()['endpoints']['qwen3']
 qwenvl_endpoint = get_config()['endpoints']['qwenvl']
