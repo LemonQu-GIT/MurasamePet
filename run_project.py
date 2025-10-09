@@ -138,6 +138,82 @@ def get_python_version():
     version = sys.version_info
     return f"{version.major}.{version.minor}.{version.micro}"
 
+def find_python310():
+    """
+    查找系统中的Python 3.10
+    返回: (is_current_python310, python310_path)
+    """
+    # 首先检查当前Python版本
+    version = sys.version_info
+    if (version.major, version.minor) == (3, 10):
+        return True, sys.executable
+    
+    # 当前不是3.10，搜索系统中的Python 3.10
+    system = platform.system()
+    python310_candidates = []
+    
+    if system == "Darwin":  # macOS
+        # Homebrew常见安装路径
+        python310_candidates.extend([
+            "/opt/homebrew/bin/python3.10",
+            "/opt/homebrew/opt/python@3.10/bin/python3.10",
+            "/opt/homebrew/Cellar/python@3.10/*/bin/python3.10",
+            "/usr/local/bin/python3.10",
+            "/usr/local/opt/python@3.10/bin/python3.10",
+            "/Library/Frameworks/Python.framework/Versions/3.10/bin/python3.10",
+        ])
+    elif system == "Windows":  # Windows
+        # Windows常见安装路径
+        python310_candidates.extend([
+            "C:\\Python310\\python.exe",
+            "C:\\Program Files\\Python310\\python.exe",
+            "C:\\Program Files (x86)\\Python310\\python.exe",
+            os.path.expanduser("~\\AppData\\Local\\Programs\\Python\\Python310\\python.exe"),
+        ])
+    elif system == "Linux":  # Linux
+        python310_candidates.extend([
+            "/usr/bin/python3.10",
+            "/usr/local/bin/python3.10",
+            os.path.expanduser("~/.pyenv/versions/3.10.*/bin/python"),
+        ])
+    
+    # 通用路径检查
+    python310_candidates.extend([
+        "python3.10",  # PATH中的python3.10
+    ])
+    
+    # 搜索并验证每个候选路径
+    import glob
+    for candidate in python310_candidates:
+        # 处理通配符路径
+        if "*" in candidate:
+            expanded_paths = glob.glob(candidate)
+            for path in expanded_paths:
+                if verify_python310(path, silent=True):
+                    return False, path
+        else:
+            if verify_python310(candidate, silent=True):
+                return False, candidate
+    
+    return False, None
+
+def verify_python310(python_path, silent=False):
+    """验证给定路径的Python是否为3.10版本"""
+    try:
+        result = subprocess.run(
+            [python_path, "-c", "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')"],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        if result.returncode == 0:
+            version = result.stdout.strip()
+            if version == "3.10":
+                return True
+    except (subprocess.SubprocessError, FileNotFoundError, subprocess.TimeoutExpired):
+        pass
+    return False
+
 def check_python_version():
     """检查Python版本 == 3.10"""
     version = sys.version_info
@@ -384,6 +460,26 @@ def main():
     print("🚀 MurasamePet 一键运行项目脚本")
     print("=" * 70)
     log("开始检测和配置环境...")
+
+    # 0. 检查系统中是否存在Python 3.10（uv会使用它来运行服务）
+    is_current_310, python310_path = find_python310()
+    if python310_path:
+        if is_current_310:
+            log(f"✅ 当前Python版本为3.10: {python310_path}", "SUCCESS")
+        else:
+            log(f"✅ 系统中找到Python 3.10: {python310_path}", "SUCCESS")
+            log(f"ℹ️  当前运行版本为 {get_python_version()}，但服务将通过uv使用Python 3.10运行", "INFO")
+    else:
+        log("❌ 系统中未找到Python 3.10", "ERROR")
+        log("⚠️  项目依赖需要Python 3.10，请先安装", "ERROR")
+        system = platform.system()
+        if system == "Darwin":
+            log("💡 macOS安装命令: brew install python@3.10", "INFO")
+        elif system == "Windows":
+            log("💡 Windows下载地址: https://www.python.org/downloads/release/python-3100/", "INFO")
+        elif system == "Linux":
+            log("💡 Linux安装命令示例: sudo apt install python3.10", "INFO")
+        sys.exit(1)
 
     # 1. 检测环境
     log("📋 正在读取配置文件...")
