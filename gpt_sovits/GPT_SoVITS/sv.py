@@ -2,8 +2,11 @@ import sys
 import os
 import torch
 
-sys.path.append(f"{os.getcwd()}/GPT_SoVITS/eres2net")
-sv_path = "GPT_SoVITS/pretrained_models/sv/pretrained_eres2netv2w24s4ep4.ckpt"
+# 使用相对于当前文件的路径，而不是os.getcwd()
+_current_dir = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(os.path.join(_current_dir, "eres2net"))
+sv_path = os.path.join(_current_dir, "pretrained_models/sv/pretrained_eres2netv2w24s4ep4.ckpt")
+
 from ERes2NetV2 import ERes2NetV2
 import kaldi as Kaldi
 

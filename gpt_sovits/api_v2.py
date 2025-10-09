@@ -105,7 +105,13 @@ from typing import Generator
 
 now_dir = os.getcwd()
 sys.path.append(now_dir)
-sys.path.append("%s/gpt_sovits" % (now_dir))
+
+# 获取api_v2.py所在的目录（gpt_sovits目录）
+api_dir = os.path.dirname(os.path.abspath(__file__))
+# 添加gpt_sovits目录到Python路径
+sys.path.append(api_dir)
+# 添加GPT_SoVITS目录到Python路径（用于导入AR, BigVGAN等模块）
+sys.path.append(os.path.join(api_dir, "GPT_SoVITS"))
 
 import argparse
 import subprocess

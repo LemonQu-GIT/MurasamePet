@@ -10,7 +10,15 @@ from torch.nn import functional as F
 from module import commons
 from module import modules
 from module import attentions
-from f5_tts.model import DiT
+
+# 条件导入 f5_tts（可能不可用）
+try:
+    from f5_tts.model import DiT
+    F5_TTS_AVAILABLE = True
+except ImportError:
+    DiT = None
+    F5_TTS_AVAILABLE = False
+
 from torch.nn import Conv1d, ConvTranspose1d, Conv2d
 from torch.nn.utils import weight_norm, remove_weight_norm, spectral_norm
 from module.commons import init_weights, get_padding
@@ -1156,6 +1164,12 @@ class SynthesizerTrnV3(nn.Module):
         **kwargs,
     ):
         super().__init__()
+        if not F5_TTS_AVAILABLE:
+            raise ImportError(
+                "SynthesizerTrnV3 requires f5_tts module which is not available. "
+                "This model version is not supported in the streamlined version. "
+                "Please use version='v2' instead."
+            )
         self.spec_channels = spec_channels
         self.inter_channels = inter_channels
         self.hidden_channels = hidden_channels
@@ -1303,6 +1317,12 @@ class SynthesizerTrnV3b(nn.Module):
         **kwargs,
     ):
         super().__init__()
+        if not F5_TTS_AVAILABLE:
+            raise ImportError(
+                "SynthesizerTrnV3b requires f5_tts module which is not available. "
+                "This model version is not supported in the streamlined version. "
+                "Please use version='v2' instead."
+            )
         self.spec_channels = spec_channels
         self.inter_channels = inter_channels
         self.hidden_channels = hidden_channels
