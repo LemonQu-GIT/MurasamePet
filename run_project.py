@@ -347,7 +347,7 @@ def run_services():
     services = [
         ("api", ("uv run python api.py", None)),
         ("pet", ("uv run python pet.py", None)),
-        ("gpt_sovits", ("uvicorn gpt_sovits.inference_server:app --host 0.0.0.0 --port 12345", None)),
+        ("gpt_sovits", ("uv run python gpt_sovits/api_v2.py -a 0.0.0.0 -p 9880 -c gpt_sovits/configs/tts_infer.yaml", None)),
     ]
 
     processes = []
