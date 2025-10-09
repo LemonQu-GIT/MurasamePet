@@ -41,6 +41,13 @@ class Murasame(QLabel):
         self.setWindowFlags(Qt.FramelessWindowHint |
                             Qt.WindowStaysOnTopHint | Qt.Tool)
         self.setAttribute(Qt.WA_TranslucentBackground)
+        
+        # 在 macOS 上定期确保窗口保持在最前面
+        import platform
+        if platform.system() == 'Darwin':
+            self.stay_on_top_timer = QTimer()
+            self.stay_on_top_timer.timeout.connect(self._ensure_on_top)
+            self.stay_on_top_timer.start(1000)  # 每秒检查一次
 
         cv_img = generate.generate_fgimage(target="ムラサメb",
                                             embeddings_layers=[1717, 1475, 1261])
@@ -110,6 +117,12 @@ class Murasame(QLabel):
 
         self.latest_response = "【 丛雨 】\n  主人，你好呀！"
 
+    def _ensure_on_top(self):
+        """确保窗口始终在最前面（macOS 专用）"""
+        # 只在不处于输入模式时提升窗口层级
+        if not self.input_mode:
+            self.raise_()
+    
     def event(self, event):
         if event.type() == QEvent.WindowActivate:
             print("activate")
@@ -174,13 +187,16 @@ class Murasame(QLabel):
             self.setCursor(Qt.SizeAllCursor)
 
     def on_move(self, event):
-        if self.touch_head and self.head_press_x is not None:
+        # 检查左键是否按下，用于摸头交互
+        if self.touch_head and self.head_press_x is not None and event.buttons() & Qt.LeftButton:
             if abs(event.x() - self.head_press_x) > 50:
                 self.llm_worker = LLMWorker(
                     "主人摸了摸你的头", self.history, self.emotion_history, self.embeddings_history, role="system")
                 self.llm_worker.finished.connect(self.on_llm_result)
                 self.llm_worker.start()
                 self.touch_head = False
+                self.head_press_x = None
+        # 中键拖动窗口
         if self.offset is not None and event.buttons() == Qt.MiddleButton:
             self.move(self.pos() + event.pos() - self.offset)
 
