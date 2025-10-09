@@ -538,9 +538,8 @@ def main():
         need_config = True
         config_reasons.append("未安装uv")
 
-    if not check_python_version():
-        need_config = True
-        config_reasons.append("Python版本 != 3.10")
+    # 注意：不再检查当前运行的Python版本
+    # 因为已经在步骤0确认系统中存在Python 3.10，uv会自动使用它
 
     if not check_download_executed():
         need_config = True
@@ -559,8 +558,7 @@ def main():
         if system == "Darwin":
             if not check_homebrew():
                 install_homebrew()
-            if not check_python_version():
-                install_python310_macos()
+            # 不再尝试安装Python 3.10，因为步骤0已确认存在
             if not check_uv():
                 install_uv_macos()
                 if check_uv():  # 如果pip安装了uv，卸载
@@ -570,8 +568,8 @@ def main():
             if not check_cuda():
                 log("请安装CUDA: https://www.cnblogs.com/AirCL/p/16963463.html", "ERROR")
                 sys.exit(1)
-            if not check_uv() or not check_python_version():
-                log("请安装uv和Python >= 3.10", "ERROR")
+            if not check_uv():
+                log("请安装uv", "ERROR")
                 sys.exit(1)
 
         if not check_download_executed():
