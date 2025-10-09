@@ -364,6 +364,12 @@ def create_tts_config():
     config_path = "gpt_sovits/configs/tts_infer.yaml"
     pretrained_dir = os.path.abspath("gpt_sovits/GPT_SoVITS/pretrained_models")
 
+    # 确保configs目录存在
+    config_dir = os.path.dirname(config_path)
+    if not os.path.exists(config_dir):
+        os.makedirs(config_dir)
+        log(f"创建配置目录: {config_dir}")
+
     # 使用 auto 自动检测设备（优先级: MPS > CUDA > CPU）
     device = "auto"
     
