@@ -42,12 +42,8 @@ class Murasame(QLabel):
                             Qt.WindowStaysOnTopHint | Qt.Tool)
         self.setAttribute(Qt.WA_TranslucentBackground)
         
-        # 在 macOS 上定期确保窗口保持在最前面
-        import platform
-        if platform.system() == 'Darwin':
-            self.stay_on_top_timer = QTimer()
-            self.stay_on_top_timer.timeout.connect(self._ensure_on_top)
-            self.stay_on_top_timer.start(1000)  # 每秒检查一次
+        # 在 macOS 上使用原生 API 设置更高的窗口层级
+        self._setup_macos_window_level()
 
         cv_img = generate.generate_fgimage(target="ムラサメb",
                                             embeddings_layers=[1717, 1475, 1261])
@@ -117,12 +113,47 @@ class Murasame(QLabel):
 
         self.latest_response = "【 丛雨 】\n  主人，你好呀！"
 
-    def _ensure_on_top(self):
-        """确保窗口始终在最前面（macOS 专用）"""
-        # 只在不处于输入模式时提升窗口层级
-        if not self.input_mode:
-            self.raise_()
-    
+    def _setup_macos_window_level(self):
+        """在 macOS 上设置窗口层级，使其始终在最前但不抢占焦点"""
+        import platform
+        if platform.system() != 'Darwin':
+            return
+        
+        try:
+            # 使用 PyObjC 提供更优雅的 Cocoa API 访问
+            from AppKit import NSApp, NSWindow, NSFloatingWindowLevel
+            from PyQt5.QtGui import QWindow
+            
+            # 延迟设置，确保窗口已经创建
+            def set_level():
+                try:
+                    # 获取 Qt 窗口对应的 NSWindow
+                    ns_view = self.winId()
+                    if ns_view:
+                        # 通过 PyObjC 获取 NSWindow 对象
+                        from objc import objc_object
+                        import ctypes
+                        ns_view_ptr = ctypes.c_void_p(int(ns_view))
+                        
+                        # 使用 PyObjC 的对象包装
+                        from AppKit import NSView
+                        view = objc_object(c_void_p=ns_view_ptr)
+                        window = view.window()
+                        
+                        if window:
+                            # 设置窗口层级为浮动窗口级别（不抢占焦点）
+                            window.setLevel_(NSFloatingWindowLevel)
+                            print("✓ macOS window level set to NSFloatingWindowLevel")
+                except Exception as e:
+                    print(f"Failed to set window level with PyObjC: {e}")
+            
+            QTimer.singleShot(100, set_level)
+        except ImportError:
+            print("PyObjC not available, falling back to Qt window flags")
+            # 如果 PyObjC 未安装，回退到默认的 Qt.WindowStaysOnTopHint
+        except Exception as e:
+            print(f"Cannot setup macOS window level: {e}")
+
     def event(self, event):
         if event.type() == QEvent.WindowActivate:
             print("activate")

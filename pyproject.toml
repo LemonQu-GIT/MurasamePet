@@ -61,6 +61,7 @@ dependencies = [
     "urllib3<2.0.0",
     "mlx>=0.29.1; sys_platform == 'darwin'",
     "mlx-lm>=0.27.1; sys_platform == 'darwin'",
+    "pyobjc-framework-Cocoa>=10.0; sys_platform == 'darwin'",
     "bigvgan>=2.4.1",
     "feature-extractor>=0.0.1",
     "utils>=1.0.2",
