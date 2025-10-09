@@ -124,6 +124,12 @@ from fastapi.responses import StreamingResponse, JSONResponse
 import uvicorn
 from io import BytesIO
 from tools.i18n.i18n import I18nAuto
+
+# 在导入 TTS 之前，先导入并注册 GPT_SoVITS.utils 模块
+# 这样在 torch.load 反序列化时可以找到正确的 utils.HParams 类
+from GPT_SoVITS import utils
+sys.modules['utils'] = utils
+
 from GPT_SoVITS.TTS_infer_pack.TTS import TTS, TTS_Config
 from GPT_SoVITS.TTS_infer_pack.text_segmentation_method import get_method_names as get_cut_method_names
 from pydantic import BaseModel
