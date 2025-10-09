@@ -10,8 +10,8 @@ from typing import Tuple
 from typing import Union
 
 import torch
-from .activation import MultiheadAttention
-from .scaling import BalancedDoubleSwish
+from AR.modules.activation import MultiheadAttention
+from AR.modules.scaling import BalancedDoubleSwish
 from torch import nn
 from torch import Tensor
 from torch.nn import functional as F

@@ -29,7 +29,7 @@ def format_bot_response(resp: str) -> dict:
                 answer = eval(resp)
                 return answer
             except:
-                return None
+                return {}
 
 
 def identity():
@@ -246,23 +246,12 @@ def generate_tts(sentence: str, emotion):
         "text_lang": "ja",
         "ref_audio_path": os.path.abspath(
             f"./models/Murasame_SoVITS/reference_voices/{emotion}/{audio[0]}"),
-        "aux_ref_audio_paths": [],
-        "prompt_text": ref,
-        "prompt_lang": "ja",
+        "ref_text": ref,
+        "ref_lang": "ja",
         "top_k": 15,
         "top_p": 1,
         "temperature": 1,
-        "text_split_method": "cut1",
-        "batch_size": 1,
-        "batch_threshold": 0.75,
-        "split_bucket": True,
         "speed_factor": 1.0,
-        "streaming_mode": False,
-        "seed": -1,
-        "parallel_infer": True,
-        "repetition_penalty": 1.35,
-        "sample_steps": 32,
-        "super_sampling": False,
     }
     response = requests.post(
         murasame_sovits_endpoint, json=params)
@@ -275,7 +264,8 @@ def generate_tts(sentence: str, emotion):
     return sentence_md5
 
 
-def split_sentence(sentence: str, history: list[dict]) -> list[str]:
+from typing import Any
+def split_sentence(sentence: str, history: list[dict]) -> Any:
     sys_prompt = f"你是一个Galgame对话句子分割助手，负责将用户输入的句子进行分割。用户会提供一个句子用于生成Galgame对话，若文本很长，你需要根据句子内容进行合理的分割。不一定是按标点符号分割，而是要考虑上下文和语义，你当然也可以选择不分割。你需要返回一个JSON列表，里面放上分割后的句子。[\"句子1\", \"句子2\"]返回不需要markdown格式的JSON，你也不需要加入```json这样的内容，你只需要返回纯JSON文本即可。"
     if history == []:
         history = [{"role": "system", "content": sys_prompt}]
@@ -285,4 +275,4 @@ def split_sentence(sentence: str, history: list[dict]) -> list[str]:
                             url=qwen3_endpoint)
     splits = splits.split("</think>")[-1].strip()
     splits = format_bot_response(splits)
-    return splits, history
+    return splits

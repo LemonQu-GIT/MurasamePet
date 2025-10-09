@@ -1,8 +1,0 @@
-custom:
-  device: mps
-  is_half: false
-  version: v2
-  t2s_weights_path: /Users/shiyu/Documents/Github/MurasamePet-With-MPS/gpt_sovits/GPT_SoVITS/pretrained_models/s1bert25hz-2kh-longer-epoch=68e-step=50232.ckpt
-  vits_weights_path: /Users/shiyu/Documents/Github/MurasamePet-With-MPS/gpt_sovits/GPT_SoVITS/pretrained_models/s2G488k.pth
-  bert_base_path: /Users/shiyu/Documents/Github/MurasamePet-With-MPS/gpt_sovits/GPT_SoVITS/pretrained_models/chinese-roberta-wwm-ext-large
-  cnhuhbert_base_path: /Users/shiyu/Documents/Github/MurasamePet-With-MPS/gpt_sovits/GPT_SoVITS/pretrained_models/chinese-hubert-base

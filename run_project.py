@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
-一键运行项目脚本
+MurasamePet 一键运行项目脚本
 跨平台Python脚本，用于检测环境、配置依赖和运行MurasamePet项目
 """
 
@@ -12,24 +13,39 @@ import json
 import shutil
 import datetime
 import time
-# 实际上，psutil不是标准库。提示说“不依赖第三方库”，但Python标准库有platform, os, subprocess等。
-# 对于内存和处理器，可以使用platform和subprocess调用系统命令。
+
+# 确保标准输出使用 UTF-8 编码，防止中文乱码
+if sys.stdout.encoding != 'utf-8':
+    import io
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
 
 def log(message, level="INFO"):
     """日志输出"""
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    print(f"[{timestamp}] [{level}] {message}")
+    
+    # 根据日志级别添加表情符号
+    emoji_map = {
+        "INFO": "ℹ️",
+        "SUCCESS": "✅",
+        "WARNING": "⚠️",
+        "ERROR": "❌",
+        "DEBUG": "🔍",
+    }
+    emoji = emoji_map.get(level, "📝")
+    
+    print(f"{emoji} [{timestamp}] [{level}] {message}")
 
 def run_command(cmd, cwd=None, shell=False, capture_output=False, check=True):
     """运行命令"""
     try:
-        log(f"执行命令: {' '.join(cmd) if isinstance(cmd, list) else cmd}")
+        log(f"🔧 执行命令: {' '.join(cmd) if isinstance(cmd, list) else cmd}", "DEBUG")
         result = subprocess.run(cmd, cwd=cwd, shell=shell, capture_output=capture_output, text=True, check=check)
         if capture_output:
             return result.stdout.strip(), result.stderr.strip()
         return result.returncode == 0
     except subprocess.CalledProcessError as e:
-        log(f"命令失败: {e}", "ERROR")
+        log(f"命令执行失败: {e}", "ERROR")
         if capture_output:
             return "", str(e)
         return False
@@ -320,17 +336,18 @@ def create_tts_config():
 
 def run_services():
     """运行服务端"""
-    log("开始运行服务端...")
+    log("🌟 开始启动所有服务...")
 
     # 创建log目录
     log_dir = "log"
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
+        log(f"📁 创建日志目录: {log_dir}")
 
     services = [
         ("api", ("uv run python api.py", None)),
-        ("gpt_sovits", ("cd gpt_sovits && uv run python api_v2.py", None)),
-        ("pet", ("uv run python pet.py", None))
+        ("pet", ("uv run python pet.py", None)),
+        ("gpt_sovits", ("uvicorn gpt_sovits.inference_server:app --host 0.0.0.0 --port 12345", None)),
     ]
 
     processes = []
@@ -342,63 +359,78 @@ def run_services():
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         log_file = os.path.join(service_log_dir, f"{timestamp}.log")
 
-        log(f"启动服务端: {name}, 日志文件: {log_file}")
+        log(f"🚀 启动服务: {name}", "SUCCESS")
+        log(f"   📄 日志文件: {log_file}")
 
-        with open(log_file, "w") as f:
+        with open(log_file, "w", encoding="utf-8") as f:
             process = subprocess.Popen(cmd, shell=True, stdout=f, stderr=f, cwd=cwd_path)
             processes.append((name, process))
 
-    log("所有服务端已启动，日志保存在log目录下")
-    log("按Ctrl+C停止服务端")
+    print()
+    log("✅ 所有服务已启动！", "SUCCESS")
+    log(f"📂 日志保存在 {log_dir} 目录下")
+    log("⚠️ 按 Ctrl+C 可停止所有服务", "WARNING")
+    print("=" * 70)
 
     try:
         while True:
             all_running = True
             for name, process in processes:
                 if process.poll() is not None:
-                    log(f"服务端 {name} 已崩溃 (退出码: {process.returncode})，正在停止所有服务端...")
+                    log(f"❌ 服务 {name} 已崩溃 (退出码: {process.returncode})", "ERROR")
+                    log("正在停止所有服务...", "WARNING")
                     all_running = False
                     break
             if not all_running:
                 break
             time.sleep(10)  # 检查间隔
     except KeyboardInterrupt:
-        log("收到停止信号，正在停止服务端...")
+        print()
+        log("🛑 收到停止信号，正在关闭所有服务...", "WARNING")
     finally:
         for name, process in processes:
             if process.poll() is None:
+                log(f"⏹️ 正在停止服务: {name}")
                 process.terminate()
         # 等待进程结束
         for name, process in processes:
             try:
                 process.wait(timeout=5)
             except subprocess.TimeoutExpired:
+                log(f"⚠️ 强制终止服务: {name}", "WARNING")
                 process.kill()
-        log("所有服务端已停止")
+        print()
+        log("✅ 所有服务已停止", "SUCCESS")
+        print("=" * 70)
 
 def main():
-    log("开始一键运行项目脚本")
+    print("=" * 70)
+    print("🚀 MurasamePet 一键运行项目脚本")
+    print("=" * 70)
+    log("开始检测和配置环境...")
 
     # 1. 检测环境
+    log("📋 正在读取配置文件...")
     api_key, is_murasame_local, all_endpoints_local = check_config()
     skip_device_check_23 = False
     if api_key and not is_murasame_local:
         skip_device_check_23 = True
-        log("根据配置，该项目所有模型运行在云端")
+        log("🌐 根据配置，该项目所有模型运行在云端", "SUCCESS")
     elif not api_key and not all_endpoints_local:
         skip_device_check_23 = True
-        log("根据配置，该项目部分模型运行在本地，请注意内存消耗")
+        log("⚡ 根据配置，该项目部分模型运行在本地，请注意内存消耗", "WARNING")
     else:
-        log("根据配置，该项目部分模型运行在本地，请注意内存消耗")
+        log("🏠 根据配置，该项目部分模型运行在本地，请注意内存消耗", "WARNING")
 
     # 2. 检测设备
+    log("💻 正在检测系统信息...")
     system, machine, processor, memory, gpu = get_system_info()
-    log(f"系统: {system}")
-    log(f"架构: {machine}")
-    log(f"处理器: {processor}")
-    log(f"内存: {memory}")
+    log(f"🖥️ 系统: {system}")
+    log(f"🏗️ 架构: {machine}")
+    log(f"⚙️ 处理器: {processor}")
+    log(f"💾 内存: {memory}")
     if gpu:
-        log(f"显卡: {gpu}")
+        log(f"🎮 显卡: {gpu}")
 
     if not skip_device_check_23:
         # 检查是否需要结束脚本
@@ -447,9 +479,9 @@ def main():
         config_reasons.append("install.sh/ps1未执行")
 
     if need_config:
-        log("环境存在问题，需要配置:")
+        log("⚙️ 环境存在问题，需要配置:", "WARNING")
         for reason in config_reasons:
-            log(f"  - {reason}")
+            log(f"  ⚠️ {reason}", "WARNING")
 
         # 5. 配置环境
         if system == "Darwin":
@@ -483,19 +515,23 @@ def main():
             run_install()
 
     else:
-        log("环境检查通过，无需配置")
+        log("✅ 环境检查通过，无需配置", "SUCCESS")
 
     # 6. 运行项目
-    log("开始运行项目")
+    print()
+    print("=" * 70)
+    log("🚀 开始运行项目...")
+    print("=" * 70)
 
     # uv sync
-    log("执行uv sync...")
+    log("📦 正在执行 uv sync 同步依赖...")
     if not run_command(["uv", "sync"]):
-        log("uv sync失败", "ERROR")
+        log("uv sync 失败", "ERROR")
         sys.exit(1)
-    log("uv sync成功")
+    log("✅ uv sync 成功", "SUCCESS")
 
     # 运行服务端
+    print()
     run_services()
 
 if __name__ == "__main__":

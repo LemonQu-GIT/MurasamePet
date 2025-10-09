@@ -5,8 +5,8 @@ from torch import nn
 from torch.nn import functional as F
 from torchmetrics.classification import MulticlassAccuracy
 
-from ..modules.embedding_onnx import SinePositionalEmbedding, TokenEmbedding
-from ..modules.transformer_onnx import LayerNorm, TransformerEncoder, TransformerEncoderLayer
+from AR.modules.embedding_onnx import SinePositionalEmbedding, TokenEmbedding
+from AR.modules.transformer_onnx import LayerNorm, TransformerEncoder, TransformerEncoderLayer
 
 default_config = {
     "embedding_dim": 512,

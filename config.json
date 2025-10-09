@@ -5,7 +5,7 @@
         "qwen3": "http://localhost:28565/qwen3",
         "qwenvl": "http://localhost:28565/qwenvl",
         "murasame": "http://localhost:28565/chat",
-        "murasame-sovits": "http://localhost:9880/tts"
+        "murasame-sovits": "http://127.0.0.1:12345/inference"
     },
     "enable_vl": true
 }

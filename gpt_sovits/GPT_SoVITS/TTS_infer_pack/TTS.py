@@ -6,6 +6,7 @@ import sys
 import time
 import traceback
 from copy import deepcopy
+
 import torchaudio
 from tqdm import tqdm
 
@@ -20,7 +21,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 import yaml
-from GPT_SoVITS.AR.models.t2s_lightning_module import Text2SemanticLightningModule
+from AR.models.t2s_lightning_module import Text2SemanticLightningModule
 from BigVGAN.bigvgan import BigVGAN
 from feature_extractor.cnhubert import CNHubert
 from module.mel_processing import mel_spectrogram_torch, spectrogram_torch

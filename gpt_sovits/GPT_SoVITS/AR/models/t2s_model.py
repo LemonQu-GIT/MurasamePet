@@ -9,7 +9,7 @@ from torch.nn import functional as F
 from torchmetrics.classification import MulticlassAccuracy
 from tqdm import tqdm
 
-from .utils import (
+from AR.models.utils import (
     dpo_loss,
     get_batch_logps,
     make_pad_mask,
@@ -18,8 +18,8 @@ from .utils import (
     sample,
     topk_sampling,
 )
-from ..modules.embedding import SinePositionalEmbedding, TokenEmbedding
-from ..modules.transformer import LayerNorm, TransformerEncoder, TransformerEncoderLayer
+from AR.modules.embedding import SinePositionalEmbedding, TokenEmbedding
+from AR.modules.transformer import LayerNorm, TransformerEncoder, TransformerEncoderLayer
 
 default_config = {
     "embedding_dim": 512,

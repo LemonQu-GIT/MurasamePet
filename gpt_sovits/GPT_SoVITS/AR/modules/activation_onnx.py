@@ -8,7 +8,7 @@ from torch.nn.init import constant_, xavier_normal_, xavier_uniform_
 from torch.nn.modules.linear import NonDynamicallyQuantizableLinear
 from torch.nn.parameter import Parameter
 
-from .patched_mha_with_cache_onnx import multi_head_attention_forward_patched
+from AR.modules.patched_mha_with_cache_onnx import multi_head_attention_forward_patched
 
 
 class MultiheadAttention(Module):

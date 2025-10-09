@@ -1,3 +1,9 @@
+# -*- coding: utf-8 -*-
+"""
+MurasamePet API 服务
+提供聊天、问答和视觉理解接口
+"""
+
 from fastapi import FastAPI, Request
 from datetime import datetime
 import uvicorn
@@ -9,38 +15,48 @@ import sys
 import os
 from Murasame.utils import get_config
 
+# 确保标准输出使用 UTF-8 编码，防止中文乱码
+if sys.stdout.encoding != 'utf-8':
+    import io
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
+
 # 检测平台和强制要求
 IS_MACOS = platform.system() == "Darwin"
 
 if IS_MACOS:
     # 在 macOS 上强制要求 MLX
+    print("🍎 检测到 macOS 系统，初始化 MLX 引擎...")
     try:
         from mlx_lm.utils import load
         from mlx_lm.generate import generate
         ENGINE = "mlx"
         DEVICE = "mlx"  # MLX 会自动使用 Apple Silicon GPU (Metal)
-        print("Using MLX engine on macOS (Apple Silicon optimized)")
+        print("✅ MLX 引擎加载成功 (Apple Silicon GPU 加速)")
     except ImportError as e:
-        print(f"❌ CRITICAL ERROR: MLX is required on macOS but not available!")
-        print(f"Import error: {e}")
+        print(f"❌ 严重错误：macOS 系统需要 MLX 但未找到该库！")
+        print(f"导入错误详情: {e}")
         print()
-        print("🔍 SOLUTION:")
-        print("1. Install MLX: pip install mlx-lm")
-        print("2. Or ensure you're using Python with MLX support")
+        print("🔍 解决方案：")
+        print("1. 安装 MLX: pip install mlx-lm")
+        print("2. 或确保您使用的 Python 环境支持 MLX")
         print()
-        print("🚨 EXITING: macOS requires MLX for optimal performance.")
+        print("🚨 程序退出：macOS 系统必须使用 MLX 以获得最佳性能")
         exit(1)
 else:
     # 在非 macOS 系统上使用 PyTorch
+    print("🖥️ 检测到非 macOS 系统，初始化 PyTorch 引擎...")
     ENGINE = "torch"
     # 检测设备优先级：MPS > CUDA > CPU
     if torch.backends.mps.is_available():
         DEVICE = "mps"
+        print("✅ PyTorch 引擎加载成功 (使用 MPS 加速)")
     elif torch.cuda.is_available():
         DEVICE = "cuda"
+        print("✅ PyTorch 引擎加载成功 (使用 CUDA 加速)")
     else:
         DEVICE = "cpu"
-    print(f"Using PyTorch engine with device: {DEVICE}")
+        print("⚠️ PyTorch 引擎加载成功 (使用 CPU，性能可能较慢)")
 
 api = FastAPI()
 
@@ -49,70 +65,66 @@ max_seq_length = 2048
 
 
 def load_model_and_tokenizer():
-    print(f"Loading model and tokenizer from adapter path: {adapter_path}")
-    print(f"Engine: {ENGINE}, Device: {DEVICE}")
+    print(f"📂 模型加载路径: {adapter_path}")
+    print(f"⚙️ 推理引擎: {ENGINE} | 计算设备: {DEVICE}")
 
     if IS_MACOS:
-        # 在 macOS 上使用 MLX + LoRA 的组合方式
-        print("🍎 Loading MLX model with LoRA adapter...")
+        # 在 macOS 上使用已合并的 MLX 模型
+        print("🍎 正在加载合并后的 MLX 模型 (Qwen3-14B-Murasame-Chat-MLX-Int4)...")
 
-        # 基底模型路径 (Qwen3-14B-MLX)
-        base_model_path = "./models/Qwen3-14B-MLX"
-
-        # 检查基底模型是否存在
-        if not os.path.exists(base_model_path):
-            print(f"❌ CRITICAL ERROR: Base model not found at {base_model_path}")
-            print("Please run download.py first to download the required models.")
-            exit(1)
-
-        # 检查 LoRA 适配器是否存在
+        # 检查合并后的模型是否存在
         if not os.path.exists(adapter_path):
-            print(f"❌ CRITICAL ERROR: LoRA adapter not found at {adapter_path}")
-            print("Please run download.py first to download the LoRA adapter.")
+            print(f"❌ 严重错误：未找到合并模型 {adapter_path}")
+            print("💡 请先运行 download.py 下载合并模型")
             exit(1)
 
         try:
-            # 使用 MLX 加载基底模型和 LoRA 适配器
-            model, tokenizer = load(base_model_path, adapter_path=adapter_path)
-            print("✅ MLX model with LoRA adapter loaded successfully!")
-            print(f"   - Base model: {base_model_path}")
-            print(f"   - LoRA adapter: {adapter_path}")
+            print("🔄 正在从磁盘读取模型文件...")
+            # 直接加载合并后的完整模型（不需要单独的 base_model 和 adapter）
+            model, tokenizer = load(adapter_path)
+            print("✅ 合并 MLX 模型加载成功！")
+            print(f"   📍 模型路径: {adapter_path}")
+            print(f"   🏷️ 模型类型: Qwen3-14B + Murasame LoRA (已合并, Int4 量化)")
+            print(f"   🚀 已启用 Apple Silicon GPU 加速")
 
         except Exception as e:
-            print(f"❌ CRITICAL ERROR: Failed to load MLX model with LoRA!")
-            print(f"Error details: {e}")
+            print(f"❌ 严重错误：无法加载合并 MLX 模型！")
+            print(f"错误详情: {e}")
             print()
-            print("🔍 POSSIBLE CAUSES:")
-            print("1. Base model files are corrupted or incomplete")
-            print("2. LoRA adapter files are incompatible with MLX")
-            print("3. Missing required MLX dependencies")
+            print("🔍 可能的原因：")
+            print("1. 模型文件损坏或不完整")
+            print("2. 下载的模型版本与 MLX 不兼容")
+            print("3. 缺少必需的 MLX 依赖")
             print()
-            print("💡 SOLUTION:")
-            print("1. Re-run download.py to ensure all models are properly downloaded")
-            print("2. Check that MLX and mlx-lm are properly installed")
-            print("3. Verify the LoRA adapter is compatible with the base model")
+            print("💡 解决方案：")
+            print("1. 重新运行 download.py 确保合并模型正确下载")
+            print("2. 检查 MLX 和 mlx-lm 是否正确安装 (pip install mlx-lm)")
+            print("3. 验证 ./models/Murasame 目录中的模型文件")
             print()
-            print("🚨 EXITING: This application requires working MLX + LoRA setup.")
+            print("🚨 程序退出：应用需要合并 MLX 模型才能运行")
             exit(1)
     else:
         # 在非 macOS 系统上使用 PyTorch (保持原有逻辑)
-        print("Loading PyTorch model with LoRA...")
+        print("🔧 正在加载 PyTorch LoRA 模型...")
 
         try:
+            print("🔄 正在从磁盘读取模型文件...")
             model, tokenizer = load(adapter_path)
-            print("LoRA model loaded successfully with PyTorch.")
+            print("✅ LoRA 模型加载成功！")
+            print(f"   📍 模型路径: {adapter_path}")
+            print(f"   🏷️ 模型类型: PyTorch LoRA")
         except Exception as e:
-            print(f"❌ CRITICAL ERROR: Failed to load LoRA model with PyTorch!")
-            print(f"Error details: {e}")
+            print(f"❌ 严重错误：无法加载 PyTorch LoRA 模型！")
+            print(f"错误详情: {e}")
             print()
-            print("🔍 POSSIBLE CAUSES:")
-            print("1. LoRA files are corrupted or incomplete")
-            print("2. Missing required PyTorch dependencies")
+            print("🔍 可能的原因：")
+            print("1. LoRA 文件损坏或不完整")
+            print("2. 缺少必需的 PyTorch 依赖")
             print()
-            print("💡 SOLUTION:")
-            print("Re-run download.py to ensure LoRA files are properly downloaded")
+            print("💡 解决方案：")
+            print("重新运行 download.py 确保 LoRA 文件正确下载")
             print()
-            print("🚨 EXITING: This application requires LoRA to function properly.")
+            print("🚨 程序退出：应用需要 LoRA 模型才能运行")
             exit(1)
 
     return model, tokenizer
@@ -125,12 +137,12 @@ def get_current_time():
 
 # 辅助函数：记录请求日志
 def log_request(prompt):
-    print(f'[{get_current_time()}] Prompt: {prompt}')
+    print(f'📥 [{get_current_time()}] 收到用户请求: {prompt}')
 
 
 # 辅助函数：记录响应日志
 def log_response(response):
-    print(f'[{get_current_time()}] Final Response: {response}')
+    print(f'📤 [{get_current_time()}] 生成最终回复: {response}')
 
 
 # 辅助函数：解析请求
@@ -206,15 +218,19 @@ async def create_chat(request: Request):
     history = history + [{'role': 'user', 'content': prompt}]
 
     # 使用 MLX 进行推理
-    print("Using MLX for inference...")
+    print("💬 使用 MLX 引擎进行推理...")
+    print(f"📊 最大生成长度: {json_post_list.get('max_new_tokens', 2048)} tokens")
+    
     text = tokenizer.apply_chat_template(
         history,
         tokenize=False,
         add_generation_prompt=True,
         enable_thinking=False,
     )
+    print("✅ 聊天模板应用完成")
 
     # MLX LM 推理
+    print("🤖 正在生成回复...")
     response = generate(
         model, tokenizer,
         prompt=text,
@@ -222,6 +238,7 @@ async def create_chat(request: Request):
         verbose=False
     )
     reply = response.strip()
+    print(f"✅ 回复生成完成 (长度: {len(reply)} 字符)")
 
     history.append({"role": "assistant", "content": reply})
 
@@ -242,8 +259,10 @@ async def create_qwen3_chat(request: Request):
 
     if should_use_openrouter(config):
         # 优先使用 OpenRouter 的 qwen3-235b 模型
+        print("🌐 使用 OpenRouter API (qwen3-235b-a22b 模型)...")
         api_key = config.get('openrouter_api_key', '')
         try:
+            print("🔄 正在调用 OpenRouter API...")
             result = call_openrouter_api(
                 api_key,
                 "qwen/qwen3-235b-a22b",  # 用户指定的模型
@@ -251,56 +270,63 @@ async def create_qwen3_chat(request: Request):
                 max_tokens=4096  # 辅助功能可能需要更多 tokens
             )
             final_response = result['choices'][0]['message']['content']
+            print("✅ OpenRouter API 调用成功")
         except Exception as e:
-            print(f"OpenRouter API failed, falling back to Ollama: {e}")
+            print(f"⚠️ OpenRouter API 调用失败，回退到 Ollama: {e}")
             # 回退到 Ollama
+            print("🔄 正在切换到本地 Ollama 服务...")
             endpoint_url = config['endpoints']['ollama']
             response = None
             try:
+                print(f"📡 正在调用 Ollama API ({endpoint_url})...")
                 response = requests.post(
                     f"{endpoint_url}/api/chat",
                     json={"model": "qwen3:14b", "messages": history,
                           "stream": False, "options": {"keep_alive": -1}},
                 )
-                print(f"Ollama response status: {response.status_code}")
-                print(f"Ollama response headers: {response.headers}")
-                print(f"Ollama response text (first 500 chars): {response.text[:500]}")
+                print(f"📊 Ollama 响应状态: {response.status_code}")
+                print(f"📋 Ollama 响应头: {response.headers}")
+                print(f"📄 Ollama 响应内容 (前500字符): {response.text[:500]}")
                 final_response = response.json()['message']['content']
+                print("✅ Ollama API 调用成功")
             except requests.exceptions.JSONDecodeError as e:
-                print(f"JSON decode error from Ollama: {e}")
+                print(f"❌ Ollama JSON 解析错误: {e}")
                 if response:
-                    print(f"Response status: {response.status_code}")
-                    print(f"Response text: {response.text}")
-                    raise Exception(f"Ollama API returned invalid JSON. Status: {response.status_code}, Response: {response.text[:500]}")
+                    print(f"响应状态: {response.status_code}")
+                    print(f"响应内容: {response.text}")
+                    raise Exception(f"Ollama API 返回了无效的 JSON。状态: {response.status_code}, 响应: {response.text[:500]}")
                 else:
-                    raise Exception("Ollama API returned invalid JSON. No response received.")
+                    raise Exception("Ollama API 返回了无效的 JSON。未收到响应。")
             except Exception as e:
-                print(f"Error calling Ollama API: {e}")
+                print(f"❌ 调用 Ollama API 时出错: {e}")
                 raise
     else:
         # 使用 Ollama
+        print("🏠 使用本地 Ollama API (qwen3:14b 模型)...")
         endpoint_url = config['endpoints']['ollama']
         response = None
         try:
+            print(f"📡 正在调用 Ollama API ({endpoint_url})...")
             response = requests.post(
                 f"{endpoint_url}/api/chat",
                 json={"model": "qwen3:14b", "messages": history,
                       "stream": False, "options": {"keep_alive": -1}},
             )
-            print(f"Ollama response status: {response.status_code}")
-            print(f"Ollama response headers: {response.headers}")
-            print(f"Ollama response text (first 500 chars): {response.text[:500]}")
+            print(f"📊 Ollama 响应状态: {response.status_code}")
+            print(f"📋 Ollama 响应头: {response.headers}")
+            print(f"📄 Ollama 响应内容 (前500字符): {response.text[:500]}")
             final_response = response.json()['message']['content']
+            print("✅ Ollama API 调用成功")
         except requests.exceptions.JSONDecodeError as e:
-            print(f"JSON decode error from Ollama: {e}")
+            print(f"❌ Ollama JSON 解析错误: {e}")
             if response:
-                print(f"Response status: {response.status_code}")
-                print(f"Response text: {response.text}")
-                raise Exception(f"Ollama API returned invalid JSON. Status: {response.status_code}, Response: {response.text[:500]}")
+                print(f"响应状态: {response.status_code}")
+                print(f"响应内容: {response.text}")
+                raise Exception(f"Ollama API 返回了无效的 JSON。状态: {response.status_code}, 响应: {response.text[:500]}")
             else:
-                raise Exception("Ollama API returned invalid JSON. No response received.")
+                raise Exception("Ollama API 返回了无效的 JSON。未收到响应。")
         except Exception as e:
-            print(f"Error calling Ollama API: {e}")
+            print(f"❌ 调用 Ollama API 时出错: {e}")
             raise
 
     history = history + [{'role': 'assistant', 'content': final_response}]
@@ -316,19 +342,23 @@ async def create_qwenvl_chat(request: Request):
 
     if "image" in json_post_list:
         image_url = json_post_list.get('image')
+        print(f"🖼️ 检测到图像输入: {image_url[:100]}...")
         history = history + \
             [{'role': 'user', 'content': prompt, 'images': [image_url]}]
     else:
+        print("📝 纯文本模式（无图像输入）")
         history = history + [{'role': 'user', 'content': prompt}]
 
     config = get_config()
 
     if should_use_openrouter(config):
         # 使用 OpenRouter，支持图像输入
+        print("🌐 使用 OpenRouter API (qwen-2.5-vl-7b-instruct 视觉模型)...")
         api_key = config.get('openrouter_api_key', '')
         image_url = json_post_list.get('image') if "image" in json_post_list else None
 
         try:
+            print("🔄 正在调用 OpenRouter 视觉 API...")
             result = call_openrouter_api(
                 api_key,
                 "qwen/qwen-2.5-vl-7b-instruct",  # OpenRouter 视觉模型名称
@@ -336,19 +366,24 @@ async def create_qwenvl_chat(request: Request):
                 image_url=image_url
             )
             final_response = result['choices'][0]['message']['content']
+            print("✅ OpenRouter 视觉 API 调用成功")
         except Exception as e:
-            error_msg = f"OpenRouter API error: {str(e)}"
+            error_msg = f"OpenRouter API 错误: {str(e)}"
+            print(f"❌ {error_msg}")
             log_response(error_msg)
             return create_response(error_msg, history, status=500)
     else:
         # 使用本地 Ollama API
+        print("🏠 使用本地 Ollama API (qwen2.5vl:7b 视觉模型)...")
         endpoint_url = config['endpoints']['ollama']
+        print(f"📡 正在调用 Ollama 视觉 API ({endpoint_url})...")
         response = requests.post(
             f"{endpoint_url}/api/chat",
             json={"model": "qwen2.5vl:7b", "messages": history,
                   "stream": False, "options": {"keep_alive": -1}},
         )
         final_response = response.json()['message']['content']
+        print("✅ Ollama 视觉 API 调用成功")
 
     history = history + [{'role': 'assistant', 'content': final_response}]
     log_response(final_response)
@@ -356,6 +391,19 @@ async def create_qwenvl_chat(request: Request):
 
 
 if __name__ == '__main__':
+    print("=" * 60)
+    print("🚀 MurasamePet API 服务启动中...")
+    print("=" * 60)
+    
     model, tokenizer = load_model_and_tokenizer()
-    # MLX 不使用 TextStreamer
+    
+    print("=" * 60)
+    print("✅ 模型加载完成，启动 FastAPI 服务器...")
+    print(f"🌐 服务地址: http://0.0.0.0:28565")
+    print(f"📡 可用端点:")
+    print(f"   - POST /chat    (主对话接口 - Murasame)")
+    print(f"   - POST /qwen3   (通用问答接口 - Qwen3)")
+    print(f"   - POST /qwenvl  (视觉理解接口 - Qwen-VL)")
+    print("=" * 60)
+    
     uvicorn.run(api, host='0.0.0.0', port=28565, workers=1)

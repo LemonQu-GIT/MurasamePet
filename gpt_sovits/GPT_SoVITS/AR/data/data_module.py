@@ -3,8 +3,8 @@
 from pytorch_lightning import LightningDataModule
 from torch.utils.data import DataLoader
 
-from .bucket_sampler import DistributedBucketSampler
-from .dataset import Text2SemanticDataset
+from AR.data.bucket_sampler import DistributedBucketSampler
+from AR.data.dataset import Text2SemanticDataset
 
 
 class Text2SemanticDataModule(LightningDataModule):

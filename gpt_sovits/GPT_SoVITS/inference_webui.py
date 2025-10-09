@@ -118,7 +118,7 @@ def set_seed(seed):
 
 from time import time as ttime
 
-from GPT_SoVITS.AR.models.t2s_lightning_module import Text2SemanticLightningModule
+from AR.models.t2s_lightning_module import Text2SemanticLightningModule
 from peft import LoraConfig, get_peft_model
 from text import cleaned_text_to_sequence
 from text.cleaner import clean_text
