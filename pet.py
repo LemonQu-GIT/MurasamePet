@@ -19,8 +19,68 @@ def wrap_text(text, width=12):
 
 
 class Murasame(QLabel):
+    # 显示预设配置
+    DISPLAY_PRESETS = {
+        "compact": {
+            "name": "紧凑模式",
+            "visible_ratio": 0.35,
+            "text_x_offset": 120,
+            "text_y_offset": 15,
+            "description": "最节省空间，只显示头部和肩部"
+        },
+        "balanced": {
+            "name": "平衡模式",
+            "visible_ratio": 0.45,
+            "text_x_offset": 140,
+            "text_y_offset": 20,
+            "description": "推荐设置，显示上半身"
+        },
+        "standard": {
+            "name": "标准模式",
+            "visible_ratio": 0.6,
+            "text_x_offset": 150,
+            "text_y_offset": 25,
+            "description": "显示到腰部，适中大小"
+        },
+        "full": {
+            "name": "完整显示",
+            "visible_ratio": 1.0,
+            "text_x_offset": 160,
+            "text_y_offset": -100,
+            "description": "显示完整桌宠"
+        }
+    }
+    
     def __init__(self):
         super().__init__()
+        
+        # 从配置文件读取显示设置
+        config = utils.get_config()
+        display_config = config.get('display', {})
+        preset_name = display_config.get('preset', 'balanced')
+        
+        # 如果使用预设
+        if preset_name in self.DISPLAY_PRESETS:
+            preset = self.DISPLAY_PRESETS[preset_name]
+            self.visible_ratio = preset['visible_ratio']
+            self.text_x_offset_default = preset['text_x_offset']
+            self.text_y_offset_default = preset['text_y_offset']
+            print(f"✓ 使用显示预设: {preset['name']} - {preset['description']}")
+        # 如果使用自定义配置
+        elif preset_name == 'custom':
+            custom_config = display_config.get('custom', {})
+            self.visible_ratio = custom_config.get('visible_ratio', 0.4)
+            self.text_x_offset_default = custom_config.get('text_x_offset', 140)
+            self.text_y_offset_default = custom_config.get('text_y_offset', 20)
+            print(f"✓ 使用自定义显示配置")
+        else:
+            # 默认使用平衡模式
+            preset = self.DISPLAY_PRESETS['balanced']
+            self.visible_ratio = preset['visible_ratio']
+            self.text_x_offset_default = preset['text_x_offset']
+            self.text_y_offset_default = preset['text_y_offset']
+            print(f"⚠ 未知预设 '{preset_name}'，使用默认: {preset['name']}")
+        
         self.history = chat.identity()
         self.emotion_history = []
         self.embeddings_history = []
@@ -179,8 +239,13 @@ class Murasame(QLabel):
     def start_move(self, event):
         if event.button() == Qt.LeftButton:
             rect = self.rect()
-
-            if event.y() < 157:
+            
+            # 由于只显示上半身，调整头部区域判断
+            # 头部区域应该是可见区域的上半部分
+            visible_height = int(self.height() * self.visible_ratio)  # 可见的部分
+            head_threshold = visible_height // 2  # 头部区域约为可见区域的上半部分
+            
+            if event.y() < head_threshold:
                 self.touch_head = True
                 self.head_press_x = event.x()
                 self.setCursor(Qt.OpenHandCursor)
@@ -204,8 +269,8 @@ class Murasame(QLabel):
                 if expanded_rect.contains(event.pos()):
                     text_clicked = True
 
-            # 根据窗口高度调整输入区域阈值，或点击文本区域
-            input_threshold = int(self.height() * 0.7)
+            # 输入区域调整为可见区域的下半部分
+            input_threshold = int(visible_height * 0.7)
             if event.y() > input_threshold or text_clicked:
                 self.input_mode = True
                 self.input_buffer = ""
@@ -240,7 +305,13 @@ class Murasame(QLabel):
             self.head_press_x = None
             self.setCursor(Qt.ArrowCursor)
 
-    def show_text(self, text: str, x_offset: int = 140, y_offset: int = -100, typing: bool = True, typing_prefix: str = "【 丛雨 】\n  "):
+    def show_text(self, text: str, x_offset: int = None, y_offset: int = None, typing: bool = True, typing_prefix: str = "【 丛雨 】\n  "):
+        # 使用配置文件中的默认值
+        if x_offset is None:
+            x_offset = self.text_x_offset_default
+        if y_offset is None:
+            y_offset = self.text_y_offset_default
+            
         # 根据缩放调整默认偏移量
         scale_factor = 1.0
         if hasattr(app, 'devicePixelRatio'):
@@ -663,15 +734,16 @@ if __name__ == "__main__":
     app = QApplication(sys.argv)
     murasame = Murasame()
 
-    # 动态计算窗口位置，确保在屏幕内
+    # 动态计算窗口位置，只显示上半身
     screen = app.primaryScreen()
     screen_geometry = screen.availableGeometry()
     window_width = murasame.width()
     window_height = murasame.height()
 
-    # 放在右下角，但留出一些边距
+    # 放在右下角，只显示上半身
     x = screen_geometry.width() - window_width - 20
-    y = screen_geometry.height() - window_height - 40  # 留出任务栏空间
+    # 让窗口下半部分超出屏幕，只显示上半身
+    y = screen_geometry.height() - int(window_height * murasame.visible_ratio)
 
     murasame.move(x, y)
     murasame.show()

@@ -7,5 +7,13 @@
         "murasame": "http://localhost:28565/chat",
         "murasame-sovits": "http://127.0.0.1:9880/tts"
     },
-    "enable_vl": true
+    "enable_vl": true,
+    "display": {
+        "preset": "balanced",
+        "custom": {
+            "visible_ratio": 0.4,
+            "text_x_offset": 140,
+            "text_y_offset": 20
+        }
+    }
 }

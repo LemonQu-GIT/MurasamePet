@@ -81,6 +81,100 @@ python run_project.py
 
 ## ⚙️ 配置说明
 
+### 桌宠显示设置
+
+桌宠支持多种显示模式，可根据屏幕大小和个人喜好选择。
+
+#### 🎯 使用预设（推荐）
+
+编辑 `config.json`，选择一个预设模式：
+
+```json
+{
+    "display": {
+        "preset": "balanced"
+    }
+}
+```
+
+**可用预设详情：**
+
+<details>
+<summary>📋 点击展开查看所有预设详情</summary>
+
+#### 🎨 紧凑模式 (`compact`)
+- **显示范围**: ⭐️ 头部+肩部 (35%)
+- **适用场景**: 屏幕较小，需要最大限度节省空间
+- **配置**: `{"display": {"preset": "compact"}}`
+
+#### 🎨 平衡模式 (`balanced`) ⭐️ **默认推荐**
+- **显示范围**: ⭐️ 上半身 (45%)
+- **适用场景**: 推荐使用，平衡显示和空间
+- **配置**: `{"display": {"preset": "balanced"}}`
+
+#### 🎨 标准模式 (`standard`)
+- **显示范围**: ⭐️⭐️ 到腰部 (60%)
+- **适用场景**: 屏幕较大，喜欢看到更多内容
+- **配置**: `{"display": {"preset": "standard"}}`
+
+#### 🎨 完整显示 (`full`)
+- **显示范围**: ⭐️⭐️⭐️⭐️ 整个桌宠 (100%)
+- **适用场景**: 屏幕很大或想看完整立绘
+- **配置**: `{"display": {"preset": "full"}}`
+
+</details>
+
+**预设对比表：**
+
+| 预设名称 | 显示内容 | 占用空间 | 推荐场景 |
+|---------|---------|---------|---------|
+| `compact` | 头部+肩部 | ⭐️ | 小屏幕笔记本 |
+| `balanced` ⭐️ | 上半身 | ⭐️⭐️ | 一般使用（默认）|
+| `standard` | 到腰部 | ⭐️⭐️⭐️ | 大屏幕 |
+| `full` | 完整桌宠 | ⭐️⭐️⭐️⭐️ | 超大屏幕 |
+
+**快速切换示例：**
+```json
+// 小屏幕笔记本，最省空间
+{"display": {"preset": "compact"}}
+
+// 一般使用，推荐设置（默认）
+{"display": {"preset": "balanced"}}
+
+// 大屏幕，想看更多
+{"display": {"preset": "standard"}}
+
+// 超大屏幕，完整显示
+{"display": {"preset": "full"}}
+```
+
+#### 🔧 自定义配置（高级）
+
+如果预设不满足需求，可以使用自定义配置：
+
+```json
+{
+    "display": {
+        "preset": "custom",
+        "custom": {
+            "visible_ratio": 0.4,
+            "text_x_offset": 140,
+            "text_y_offset": 20
+        }
+    }
+}
+```
+
+**参数说明：**
+- `visible_ratio`: 桌宠可见高度比例（0.0-1.0）
+- `text_x_offset`: 文字水平偏移（正值向右，负值向左）
+- `text_y_offset`: 文字垂直偏移（正值向下，负值向上）
+
+**交互区域自动适配：**
+- **头部摸头区域**：可见区域的上半部分
+- **输入区域**：可见区域的下半部分
+- **中键拖动**：任意位置
+
 ### OpenRouter（可选）
 
 如果你想使用OpenRouter作为云端API提供商：
@@ -126,6 +220,30 @@ ollama pull qwen2.5vl:7b
 - `ollama`: Ollama服务地址（默认 `http://localhost:11434`）
 - `murasame-sovits`: TTS服务地址（默认 `http://127.0.0.1:9880/tts`）
 - `qwen3`, `qwenvl`, `murasame`: 本地API或云端API地址
+
+### config.json 完整示例
+
+```json
+{
+    "openrouter_api_key": "YOUR_OPENROUTER_API_KEY_HERE",
+    "endpoints": {
+        "ollama": "http://localhost:11434",
+        "qwen3": "http://localhost:28565/qwen3",
+        "qwenvl": "http://localhost:28565/qwenvl",
+        "murasame": "http://localhost:28565/chat",
+        "murasame-sovits": "http://127.0.0.1:9880/tts"
+    },
+    "enable_vl": true,
+    "display": {
+        "preset": "balanced",
+        "custom": {
+            "visible_ratio": 0.4,
+            "text_x_offset": 140,
+            "text_y_offset": 20
+        }
+    }
+}
+```
 
 ### macOS权限配置
 
