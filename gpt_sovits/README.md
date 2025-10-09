@@ -17,17 +17,27 @@
 
 ### 1. 安装依赖
 
-首先需要运行项目的安装脚本：
+#### 方式 1: 完整项目安装（推荐）
+
+本项目作为 MurasamePet 的子模块，依赖由根项目统一管理：
 
 ```bash
-# macOS
-bash install.sh
-
-# Windows
-powershell -ExecutionPolicy Bypass -File install.ps1
+# 在项目根目录
+cd /path/to/MurasamePet-With-MPS
+uv sync
 ```
 
-这将自动下载预训练模型和必要的数据文件。
+#### 方式 2: 下载预训练模型
+
+```bash
+# 在 gpt_sovits 目录
+cd gpt_sovits
+bash install.sh --source ModelScope    # 国内推荐
+# 或
+bash install.sh --source HF            # 国外
+```
+
+这将下载 TTS 推理所需的预训练模型和数据文件。
 
 ### 2. 启动 TTS API 服务
 
@@ -138,8 +148,8 @@ gpt_sovits/
 
 ```yaml
 custom:
-  device: mps                    # 设备: cpu/cuda/mps
-  is_half: false                 # 是否使用半精度
+  device: auto                   # 设备: auto/cpu/cuda/mps (推荐使用 auto 自动检测)
+  is_half: false                 # 是否使用半精度 (仅 CUDA 支持)
   version: v2                    # 模型版本
   t2s_weights_path: ...          # GPT 模型路径
   vits_weights_path: ...         # SoVITS 模型路径
@@ -147,7 +157,55 @@ custom:
   cnhuhbert_base_path: ...       # CNHubert 模型路径
 ```
 
-配置文件由 `install.sh` 自动生成，通常无需手动修改。
+配置文件通常无需手动修改。
+
+### 🚀 自动设备检测
+
+本项目支持**自动检测最优推理设备**，检测优先级为：**MPS > CUDA > CPU**
+
+#### 设备选项说明
+
+- **`device: auto`** （推荐）
+  - 自动检测并使用最佳设备
+  - Apple Silicon Mac → **MPS** (Metal Performance Shaders)
+  - NVIDIA GPU → **CUDA**
+  - 其他 → **CPU**
+
+- **手动指定设备**
+  - `device: mps` - Apple Silicon GPU 加速
+  - `device: cuda` - NVIDIA GPU 加速  
+  - `device: cpu` - CPU 推理
+
+#### 性能对比
+
+| 设备 | 适用平台 | 相对性能 | 推荐度 |
+|------|---------|---------|--------|
+| **MPS** | Apple Silicon (M1/M2/M3/M4) | ⭐⭐⭐⭐ | 🟢 **强烈推荐** |
+| **CUDA** | NVIDIA GPU | ⭐⭐⭐⭐⭐ | 🟢 **强烈推荐** |
+| **CPU** | 所有平台 | ⭐⭐ | ⚪ 备选 |
+
+#### 配置示例
+
+**自动检测（推荐）**：
+```yaml
+custom:
+  device: auto       # 自动选择最佳设备
+  is_half: false
+```
+
+**Apple Silicon 用户**：
+```yaml
+custom:
+  device: mps        # 或使用 auto 自动检测
+  is_half: false     # MPS 不支持半精度
+```
+
+**NVIDIA GPU 用户**：
+```yaml
+custom:
+  device: cuda       # 或使用 auto 自动检测
+  is_half: true      # 启用半精度以提升性能
+```
 
 ## 🔧 常见问题
 

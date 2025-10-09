@@ -191,6 +191,26 @@ v4:
 """
 
 
+def get_optimal_device():
+    """
+    自动检测并返回最优设备
+    优先级: MPS > CUDA > CPU
+    """
+    # 检测 MPS (Apple Silicon)
+    if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+        print("检测到 Apple Silicon，使用 MPS 加速")
+        return torch.device("mps")
+    
+    # 检测 CUDA
+    if torch.cuda.is_available():
+        print(f"检测到 CUDA，使用 GPU 加速 (设备: {torch.cuda.get_device_name(0)})")
+        return torch.device("cuda")
+    
+    # 默认使用 CPU
+    print("使用 CPU 进行推理")
+    return torch.device("cpu")
+
+
 def set_seed(seed: int):
     seed = int(seed)
     seed = seed if seed != -1 else random.randint(0, 2**32 - 1)
@@ -309,14 +329,27 @@ class TTS_Config:
         self.configs: dict = configs_.get("custom", configs_["v2"])
         self.default_configs = deepcopy(configs_)
 
-        self.device = self.configs.get("device", torch.device("cpu"))
-        if "cuda" in str(self.device) and not torch.cuda.is_available():
-            print("Warning: CUDA is not available, set device to CPU.")
-            self.device = torch.device("cpu")
+        # 获取设备配置
+        device_config = self.configs.get("device", "auto")
+        
+        # 自动检测设备
+        if device_config == "auto" or device_config in ["", None]:
+            self.device = get_optimal_device()
+        else:
+            self.device = torch.device(device_config)
+            # 验证设备可用性
+            if "cuda" in str(self.device) and not torch.cuda.is_available():
+                print("Warning: CUDA is not available, falling back to auto detection.")
+                self.device = get_optimal_device()
+            elif "mps" in str(self.device):
+                if not (hasattr(torch.backends, "mps") and torch.backends.mps.is_available()):
+                    print("Warning: MPS is not available, falling back to auto detection.")
+                    self.device = get_optimal_device()
 
         self.is_half = self.configs.get("is_half", False)
-        if str(self.device) == "cpu" and self.is_half:
-            print(f"Warning: Half precision is not supported on CPU, set is_half to False.")
+        # Disable half precision for CPU and MPS
+        if str(self.device) in ["cpu", "mps"] and self.is_half:
+            print(f"Warning: Half precision is not supported on {self.device}, set is_half to False.")
             self.is_half = False
 
         version = self.configs.get("version", None)

@@ -148,32 +148,18 @@ def check_download_executed():
     return os.path.exists("models") and os.listdir("models")
 
 def check_install_executed():
-    """检查install.sh/ps1是否执行"""
-    system = platform.system()
-    if system == "Darwin":
-        # 检查gpt_sovits/pretrained_models/sv
-        if not os.path.exists("gpt_sovits/pretrained_models/sv"):
-            return False
-        # 检查NLTK数据
-        try:
-            import sys
-            py_prefix = sys.prefix
-            if not os.path.exists(os.path.join(py_prefix, "nltk_data")):
-                return False
-        except:
-            pass
-        # 检查Open JTalk Dic
-        try:
-            import pyopenjtalk
-            pyopenjtalk_prefix = os.path.dirname(pyopenjtalk.__file__)
-            if not os.path.exists(os.path.join(pyopenjtalk_prefix, "open_jtalk_dic_utf_8-1.11")):
-                return False
-        except:
-            pass
-        return True
-    elif system == "Windows":
-        return os.path.exists("GPT_SoVITS/pretrained_models/sv")
-    return False
+    """检查install.sh是否执行（检查预训练模型是否下载）"""
+    # 检查预训练模型目录
+    pretrained_path = "gpt_sovits/GPT_SoVITS/pretrained_models/sv"
+    if not os.path.exists(pretrained_path):
+        return False
+    
+    # 检查 G2PWModel（中文文本处理）
+    g2pw_path = "gpt_sovits/GPT_SoVITS/text/G2PWModel"
+    if not os.path.exists(g2pw_path):
+        return False
+    
+    return True
 
 def install_homebrew():
     """安装Homebrew"""
@@ -254,76 +240,66 @@ def run_download():
         sys.exit(1)
 
 def run_install():
-    """运行install.sh或install.ps1"""
+    """运行install.sh下载预训练模型（精简版，仅下载模型）"""
     system = platform.system()
+    
+    # 检查必要的工具
     if system == "Darwin":
-        log("macOS: 安装wget...")
-        if run_command(["brew", "install", "wget"]):
-            log("wget安装成功")
-        else:
-            log("wget安装失败", "ERROR")
-            sys.exit(1)
-
-        log("运行install.sh...")
-        # 修改install.sh中的python为python3
+        log("macOS: 检查并安装必要工具...")
+        # 检查 wget
         try:
-            with open("gpt_sovits/install.sh", "r") as f:
-                content = f.read()
-            content = content.replace("python ", "python3 ")
-            content = content.replace(" pip ", " pip3 ")
-            with open("gpt_sovits/install.sh", "w") as f:
-                f.write(content)
-            log("已修改install.sh中的python为python3")
-        except Exception as e:
-            log(f"修改install.sh失败: {e}", "ERROR")
-        # 需要参数，假设默认值
-        cmd = ["bash", "gpt_sovits/install.sh", "--device", "MPS", "--source", "ModelScope", "--download-uvr5"]
-        if run_command(cmd):
-            log("install.sh执行成功")
-            # 创建配置文件
-            create_tts_config()
-        else:
-            log("install.sh执行失败", "ERROR")
-            sys.exit(1)
-    elif system == "Windows":
-        log("运行install.ps1...")
-        # 修改install.ps1中的python为python
+            subprocess.run(["wget", "--version"], capture_output=True, check=True)
+            log("wget 已安装")
+        except:
+            log("安装 wget...")
+            if run_command(["brew", "install", "wget"]):
+                log("wget安装成功")
+            else:
+                log("wget安装失败", "ERROR")
+                sys.exit(1)
+        
+        # 检查 unzip
         try:
-            with open("gpt_sovits/install.ps1", "r", encoding="utf-8") as f:
-                content = f.read()
-            content = content.replace("python ", "python ")
-            # Windows可能需要python3，但通常是python
-            with open("gpt_sovits/install.ps1", "w", encoding="utf-8") as f:
-                f.write(content)
-        except Exception as e:
-            log(f"修改install.ps1失败: {e}", "ERROR")
-        cmd = ["powershell", "-ExecutionPolicy", "Bypass", "-File", "gpt_sovits/install.ps1", "-Device", "CPU", "-Source", "HF", "-DownloadUVR5"]
-        if run_command(cmd):
-            log("install.ps1执行成功")
-            # 创建配置文件
-            create_tts_config()
-        else:
-            log("install.ps1执行失败", "ERROR")
+            subprocess.run(["unzip", "-v"], capture_output=True, check=True)
+            log("unzip 已安装")
+        except:
+            log("unzip 未安装，请手动安装: brew install unzip", "ERROR")
             sys.exit(1)
+    
+    # 运行 install.sh（精简版）
+    log("运行 install.sh 下载预训练模型...")
+    log("注意: 新版 install.sh 仅下载模型，依赖由根项目 uv 管理")
+    
+    # 使用 ModelScope（国内推荐）
+    cmd = ["bash", "gpt_sovits/install.sh", "--source", "ModelScope"]
+    
+    if run_command(cmd):
+        log("预训练模型下载成功", "SUCCESS")
+        # 创建配置文件
+        create_tts_config()
+    else:
+        log("预训练模型下载失败", "ERROR")
+        log("提示: 可以手动运行 'cd gpt_sovits && bash install.sh --source ModelScope'", "WARNING")
+        sys.exit(1)
 
 def create_tts_config():
-    """创建TTS配置文件"""
+    """创建TTS配置文件（使用自动设备检测）"""
     config_path = "gpt_sovits/configs/tts_infer.yaml"
     pretrained_dir = os.path.abspath("gpt_sovits/GPT_SoVITS/pretrained_models")
 
-    # 根据平台和硬件设置设备
+    # 使用 auto 自动检测设备（优先级: MPS > CUDA > CPU）
+    device = "auto"
+    
+    # 检查是否是 CUDA 环境，如果是可以启用半精度
+    is_half = "false"
     system = platform.system()
-    if system == "Darwin":
-        device = "mps"  # macOS 使用 MPS
-    elif system == "Windows" and check_cuda():
-        device = "cuda"  # Windows 有 CUDA 使用 CUDA
-    else:
-        device = "cpu"  # 其他情况使用 CPU
-
-    # 创建包含 custom 键的配置，这样 TTS_Config 会优先使用它
+    if system == "Windows" and check_cuda():
+        is_half = "true"  # CUDA 可以使用半精度提升性能
+    
+    # 创建包含 custom 键的配置
     content = f"""custom:
   device: {device}
-  is_half: false
+  is_half: {is_half}
   version: v2
   t2s_weights_path: {pretrained_dir}/s1bert25hz-2kh-longer-epoch=68e-step=50232.ckpt
   vits_weights_path: {pretrained_dir}/s2G488k.pth
@@ -332,7 +308,7 @@ def create_tts_config():
 """
     with open(config_path, "w") as f:
         f.write(content)
-    log(f"已创建TTS配置文件: {config_path} (设备: {device})")
+    log(f"已创建TTS配置文件: {config_path} (设备: {device}, 半精度: {is_half})", "SUCCESS")
 
 def run_services():
     """运行服务端"""
