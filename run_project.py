@@ -309,7 +309,8 @@ def run_download():
         log("uv add modelscope失败", "ERROR")
         sys.exit(1)
     log("运行download.py...")
-    if run_command([sys.executable, "download.py"]):
+    # 使用uv run确保在虚拟环境中运行
+    if run_command(["uv", "run", "python", "download.py"]):
         log("download.py执行成功")
     else:
         log("download.py执行失败", "ERROR")
