@@ -248,6 +248,7 @@ def generate_tts(sentence: str, emotion):
             f"./models/Murasame_SoVITS/reference_voices/{emotion}/{audio[0]}"),
         "prompt_text": ref,
         "prompt_lang": "ja",
+        "text_split_method": "cut5",  # 按标点符号切分文本
         "top_k": 15,
         "top_p": 1,
         "temperature": 1,
