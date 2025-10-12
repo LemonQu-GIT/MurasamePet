@@ -23,10 +23,19 @@ python run_project.py
 
 - **Python**: 3.10（必须）
 - **macOS**: Apple Silicon (M1/M2/M3/M4) 推荐，Intel不支持
-- **Windows**: 需要NVIDIA显卡和CUDA
-- **内存**: 建议16GB以上
+- **Windows**: 需要NVIDIA显卡和CUDA（推荐），同时也支持CPU运行（性能较低）
+- **内存**: 建议16GB以上（若在Windows上使用CPU运行14B模型，建议32GB以上）
 
 > 💡 **提示**: 运行 `run_project.py` 本身可以使用任何Python版本，脚本会自动检测系统中是否存在Python 3.10。服务将通过`uv`使用Python 3.10运行。详见 [PYTHON_VERSION_DETECTION.md](PYTHON_VERSION_DETECTION.md)
+
+### 模型结构差异说明
+
+本项目为不同操作系统使用了不同的模型加载策略，请务必注意：
+
+- **macOS (Apple Silicon)**: 使用 **MLX** 框架，需要下载 **合并后的模型**。`download.py` 脚本会自动处理。合并后的模型位于 `./models/Murasame` 目录，包含了完整的模型权重和配置。
+- **Windows / Linux**: 使用 **PyTorch** 框架，需要下载 **基础模型 (Qwen3-14B)** 和 **LoRA 适配器**。`download.py` 脚本同样会自动处理。LoRA 适配器位于 `./models/Murasame`，而基础模型位于 `./models/Qwen3-14B`。
+
+**重要**: 两个平台的模型文件 **不可混用**。请不要将为 macOS 下载的合并模型复制到 Windows 环境，反之亦然，否则会导致 `api.py` 启动失败。
 
 ## 📦 手动部署
 

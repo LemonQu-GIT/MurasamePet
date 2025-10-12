@@ -75,9 +75,14 @@ def load_model_and_tokenizer():
         print("🍎 正在加载合并后的 MLX 模型 (Qwen3-14B-Murasame-Chat-MLX-Int4)...")
 
         # 检查合并后的模型是否存在
-        if not os.path.exists(adapter_path):
-            print(f"❌ 严重错误：未找到合并模型 {adapter_path}")
-            print("💡 请先运行 download.py 下载合并模型")
+        # 检查 MLX 模型必需文件
+        required_files = ["model.safetensors", "tokenizer.json", "config.json"]
+        missing_files = [f for f in required_files if not os.path.exists(os.path.join(adapter_path, f))]
+
+        if missing_files:
+            print(f"❌ 严重错误：在 {adapter_path} 中缺少以下 MLX 模型文件: {', '.join(missing_files)}")
+            print("💡 请确保已为 macOS 下载了正确的合并模型，而不是 Windows 使用的 LoRA 文件。")
+            print("   - 运行 'python download.py' 脚本来获取正确的模型。")
             exit(1)
 
         try:
@@ -130,7 +135,9 @@ def load_model_and_tokenizer():
                 exit(1)
 
             torch_dtype = torch.float16 if DEVICE == "cuda" else torch.float32
-            device_map = "auto" if DEVICE == "cuda" else None
+            device_map = "auto" if DEVICE == "cuda" else "cpu"
+            if DEVICE == "cpu":
+                print("⚠️  警告: 在 CPU 上加载 14B 模型需要大量内存 (通常 > 32GB)，请确保可用内存充足。")
 
             print(f"📦 正在加载基础模型: {base_model_path}")
             base_model = AutoModelForCausalLM.from_pretrained(
@@ -269,7 +276,7 @@ async def create_chat(request: Request):
     history = history + [{'role': 'user', 'content': prompt}]
 
     # 使用 MLX 进行推理
-    print("💬 使用 MLX 引擎进行推理...")
+    print(f"💬 使用 {ENGINE.upper()} 引擎进行推理...")
     print(f"📊 最大生成长度: {json_post_list.get('max_new_tokens', 2048)} tokens")
     
     text = tokenizer.apply_chat_template(
