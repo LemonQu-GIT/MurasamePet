@@ -1,241 +1,197 @@
 Param (
-    [Parameter(Mandatory=$true)][ValidateSet("CU126", "CU128", "CPU")][string]$Device,
-    [Parameter(Mandatory=$true)][ValidateSet("HF", "HF-Mirror", "ModelScope")][string]$Source,
+    [ValidateSet("CU126", "CU128", "CPU")]
+    [string]$Device = "CPU",
+    [Parameter(Mandatory = $true)]
+    [ValidateSet("HF", "HF-Mirror", "ModelScope")]
+    [string]$Source,
     [switch]$DownloadUVR5
 )
 
-$global:ErrorActionPreference = 'Stop'
+$ErrorActionPreference = 'Stop'
 
-trap {
-    Write-ErrorLog $_
-}
-
-function Write-ErrorLog {
-    param (
-        [System.Management.Automation.ErrorRecord]$ErrorRecord
-    )
-
-    Write-Host "`n[ERROR] Command failed:" -ForegroundColor Red
-    if (-not $ErrorRecord.Exception.Message){
-    } else {
-        Write-Host "Message:" -ForegroundColor Red 
-        $ErrorRecord.Exception.Message -split "`n" | ForEach-Object {
-            Write-Host "    $_"
-        }
-    }
-
-    Write-Host "Command:" -ForegroundColor Red  -NoNewline
-    Write-Host " $($ErrorRecord.InvocationInfo.Line)".Replace("`r", "").Replace("`n", "")
-    Write-Host "Location:" -ForegroundColor Red -NoNewline
-    Write-Host " $($ErrorRecord.InvocationInfo.ScriptName):$($ErrorRecord.InvocationInfo.ScriptLineNumber)"
-    Write-Host "Call Stack:" -ForegroundColor DarkRed
-    $ErrorRecord.ScriptStackTrace -split "`n" | ForEach-Object {
-        Write-Host "    $_" -ForegroundColor DarkRed
-    }
-
-    exit 1
-}
-
-function Write-Info($msg) {
+function Write-Info {
+    param([string]$Message)
     Write-Host "[INFO]:" -ForegroundColor Green -NoNewline
-    Write-Host " $msg"
-}
-function Write-Success($msg) {
-    Write-Host "[SUCCESS]:" -ForegroundColor Blue -NoNewline
-    Write-Host " $msg"
+    Write-Host " $Message"
 }
 
-
-function Invoke-Conda {
-    param (
-        [Parameter(ValueFromRemainingArguments = $true)]
-        [string[]]$Args
-    )
-
-    $output = & conda install -y -q -c conda-forge @Args 2>&1
-    $exitCode = $LASTEXITCODE
-
-    if ($exitCode -ne 0) {
-        Write-Host "Conda Install $Args Failed" -ForegroundColor Red
-        $errorMessages = @()
-        foreach ($item in $output) {
-            if ($item -is [System.Management.Automation.ErrorRecord]) {
-                $msg = $item.Exception.Message
-                Write-Host "$msg" -ForegroundColor Red
-                $errorMessages += $msg
-            }
-            else {
-                Write-Host $item
-                $errorMessages += $item
-            }
-        }
-        throw [System.Exception]::new(($errorMessages -join "`n"))
-    }
+function Write-WarningMessage {
+    param([string]$Message)
+    Write-Host "[WARNING]:" -ForegroundColor Yellow -NoNewline
+    Write-Host " $Message"
 }
 
-function Invoke-Pip {
-    param (
-        [Parameter(ValueFromRemainingArguments = $true)]
-        [string[]]$Args
-    )
-    
-    $output = & pip install @Args 2>&1
-    $exitCode = $LASTEXITCODE
-    
-    if ($exitCode -ne 0) {
-        $errorMessages = @()
-        Write-Host "Pip Install $Args Failed" -ForegroundColor Red
-        foreach ($item in $output) {
-            if ($item -is [System.Management.Automation.ErrorRecord]) {
-                $msg = $item.Exception.Message
-                Write-Host "$msg" -ForegroundColor Red
-                $errorMessages += $msg
-            }
-            else {
-                Write-Host $item
-                $errorMessages += $item
-            }
-        }
-        throw [System.Exception]::new(($errorMessages -join "`n"))
-    }
+function Write-Success {
+    param([string]$Message)
+    Write-Host "[SUCCESS]:" -ForegroundColor Cyan -NoNewline
+    Write-Host " $Message"
+}
+
+function Write-ErrorMessage {
+    param([string]$Message)
+    Write-Host "[ERROR]:" -ForegroundColor Red -NoNewline
+    Write-Host " $Message"
 }
 
 function Invoke-Download {
-    param (
-        [Parameter(Mandatory = $true)]
-        [string]$Uri,
-
-        [Parameter()]
-        [string]$OutFile
+    param(
+        [Parameter(Mandatory = $true)][string]$Uri,
+        [Parameter(Mandatory = $true)][string]$OutFile
     )
-
     try {
-        $params = @{
-            Uri = $Uri
-        }
-
-        if ($OutFile) {
-            $params["OutFile"] = $OutFile
-        }
-
-        $null = Invoke-WebRequest @params -ErrorAction Stop
-
+        Write-Info "Downloading $OutFile ..."
+        Invoke-WebRequest -Uri $Uri -OutFile $OutFile -UseBasicParsing -ErrorAction Stop
     } catch {
-        Write-Host "Failed to download:" -ForegroundColor Red
-        Write-Host "  $Uri"
+        Write-ErrorMessage "Failed to download: $Uri"
         throw
     }
 }
 
 function Invoke-Unzip {
-    param($ZipPath, $DestPath)
-    Expand-Archive -Path $ZipPath -DestinationPath $DestPath -Force
+    param(
+        [Parameter(Mandatory = $true)][string]$ZipPath,
+        [Parameter(Mandatory = $true)][string]$Destination
+    )
+    if (-not (Test-Path $Destination)) {
+        New-Item -ItemType Directory -Path $Destination -Force | Out-Null
+    }
+    Expand-Archive -Path $ZipPath -DestinationPath $Destination -Force
     Remove-Item $ZipPath -Force
 }
 
-chcp 65001
+trap {
+    Write-ErrorMessage $_.Exception.Message
+    exit 1
+}
+
+chcp 65001 | Out-Null
 Set-Location $PSScriptRoot
 
-Write-Info "Installing FFmpeg & CMake..."
-Invoke-Conda  ffmpeg cmake
-Write-Success "FFmpeg & CMake Installed"
+Write-Info "MurasamePet GPT-SoVITS 预训练模型下载脚本 (PowerShell)"
+Write-Info "目标设备参数: $Device (仅用于日志提示)"
 
-$PretrainedURL  = ""
-$G2PWURL        = ""
-$UVR5URL        = ""
-$NLTKURL        = ""
-$OpenJTalkURL   = ""
+$PretrainedURL = ""
+$G2PWURL = ""
+$UVR5URL = ""
+$NLTKURL = ""
+$OpenJTalkURL = ""
 
 switch ($Source) {
     "HF" {
-        Write-Info "Download Model From HuggingFace"
+        Write-Info "使用 HuggingFace 作为下载源"
         $PretrainedURL = "https://huggingface.co/XXXXRT/GPT-SoVITS-Pretrained/resolve/main/pretrained_models.zip"
-        $G2PWURL       = "https://huggingface.co/XXXXRT/GPT-SoVITS-Pretrained/resolve/main/G2PWModel.zip"
-        $UVR5URL       = "https://huggingface.co/XXXXRT/GPT-SoVITS-Pretrained/resolve/main/uvr5_weights.zip"
-        $NLTKURL       = "https://huggingface.co/XXXXRT/GPT-SoVITS-Pretrained/resolve/main/nltk_data.zip"
-        $OpenJTalkURL  = "https://huggingface.co/XXXXRT/GPT-SoVITS-Pretrained/resolve/main/open_jtalk_dic_utf_8-1.11.tar.gz"
+        $G2PWURL = "https://huggingface.co/XXXXRT/GPT-SoVITS-Pretrained/resolve/main/G2PWModel.zip"
+        $UVR5URL = "https://huggingface.co/XXXXRT/GPT-SoVITS-Pretrained/resolve/main/uvr5_weights.zip"
+        $NLTKURL = "https://huggingface.co/XXXXRT/GPT-SoVITS-Pretrained/resolve/main/nltk_data.zip"
+        $OpenJTalkURL = "https://huggingface.co/XXXXRT/GPT-SoVITS-Pretrained/resolve/main/open_jtalk_dic_utf_8-1.11.tar.gz"
     }
     "HF-Mirror" {
-        Write-Info "Download Model From HuggingFace-Mirror"
+        Write-Info "使用 HuggingFace Mirror 作为下载源"
         $PretrainedURL = "https://hf-mirror.com/XXXXRT/GPT-SoVITS-Pretrained/resolve/main/pretrained_models.zip"
-        $G2PWURL       = "https://hf-mirror.com/XXXXRT/GPT-SoVITS-Pretrained/resolve/main/G2PWModel.zip"
-        $UVR5URL       = "https://hf-mirror.com/XXXXRT/GPT-SoVITS-Pretrained/resolve/main/uvr5_weights.zip"
-        $NLTKURL       = "https://hf-mirror.com/XXXXRT/GPT-SoVITS-Pretrained/resolve/main/nltk_data.zip"
-        $OpenJTalkURL  = "https://hf-mirror.com/XXXXRT/GPT-SoVITS-Pretrained/resolve/main/open_jtalk_dic_utf_8-1.11.tar.gz"
+        $G2PWURL = "https://hf-mirror.com/XXXXRT/GPT-SoVITS-Pretrained/resolve/main/G2PWModel.zip"
+        $UVR5URL = "https://hf-mirror.com/XXXXRT/GPT-SoVITS-Pretrained/resolve/main/uvr5_weights.zip"
+        $NLTKURL = "https://hf-mirror.com/XXXXRT/GPT-SoVITS-Pretrained/resolve/main/nltk_data.zip"
+        $OpenJTalkURL = "https://hf-mirror.com/XXXXRT/GPT-SoVITS-Pretrained/resolve/main/open_jtalk_dic_utf_8-1.11.tar.gz"
     }
     "ModelScope" {
-        Write-Info "Download Model From ModelScope"
+        Write-Info "使用 ModelScope 作为下载源"
         $PretrainedURL = "https://www.modelscope.cn/models/XXXXRT/GPT-SoVITS-Pretrained/resolve/master/pretrained_models.zip"
-        $G2PWURL       = "https://www.modelscope.cn/models/XXXXRT/GPT-SoVITS-Pretrained/resolve/master/G2PWModel.zip"
-        $UVR5URL       = "https://www.modelscope.cn/models/XXXXRT/GPT-SoVITS-Pretrained/resolve/master/uvr5_weights.zip"
-        $NLTKURL       = "https://www.modelscope.cn/models/XXXXRT/GPT-SoVITS-Pretrained/resolve/master/nltk_data.zip"
-        $OpenJTalkURL  = "https://www.modelscope.cn/models/XXXXRT/GPT-SoVITS-Pretrained/resolve/master/open_jtalk_dic_utf_8-1.11.tar.gz"
+        $G2PWURL = "https://www.modelscope.cn/models/XXXXRT/GPT-SoVITS-Pretrained/resolve/master/G2PWModel.zip"
+        $UVR5URL = "https://www.modelscope.cn/models/XXXXRT/GPT-SoVITS-Pretrained/resolve/master/uvr5_weights.zip"
+        $NLTKURL = "https://www.modelscope.cn/models/XXXXRT/GPT-SoVITS-Pretrained/resolve/master/nltk_data.zip"
+        $OpenJTalkURL = "https://www.modelscope.cn/models/XXXXRT/GPT-SoVITS-Pretrained/resolve/master/open_jtalk_dic_utf_8-1.11.tar.gz"
     }
 }
 
 if (-not (Test-Path "GPT_SoVITS/pretrained_models/sv")) {
-    Write-Info "Downloading Pretrained Models..."
-    Invoke-Download -Uri $PretrainedURL -OutFile "pretrained_models.zip"
-    Invoke-Unzip "pretrained_models.zip" "GPT_SoVITS"
-    Write-Success "Pretrained Models Downloaded"
+    Write-Info "下载预训练模型..."
+    $zipPath = "pretrained_models.zip"
+    Invoke-Download -Uri $PretrainedURL -OutFile $zipPath
+    Invoke-Unzip -ZipPath $zipPath -Destination "GPT_SoVITS"
+    Write-Success "预训练模型下载完成"
 } else {
-    Write-Info "Pretrained Model Exists"
-    Write-Info "Skip Downloading Pretrained Models"
+    Write-Info "预训练模型已存在，跳过下载"
 }
 
-
 if (-not (Test-Path "GPT_SoVITS/text/G2PWModel")) {
-    Write-Info "Downloading G2PWModel..."
-    Invoke-Download -Uri $G2PWURL -OutFile "G2PWModel.zip"
-    Invoke-Unzip "G2PWModel.zip" "GPT_SoVITS/text"
-    Write-Success "G2PWModel Downloaded"
+    Write-Info "下载 G2PWModel..."
+    $zipPath = "G2PWModel.zip"
+    Invoke-Download -Uri $G2PWURL -OutFile $zipPath
+    Invoke-Unzip -ZipPath $zipPath -Destination "GPT_SoVITS/text"
+    Write-Success "G2PWModel 下载完成"
 } else {
-    Write-Info "G2PWModel Exists"
-    Write-Info "Skip Downloading G2PWModel"
+    Write-Info "G2PWModel 已存在，跳过下载"
 }
 
 if ($DownloadUVR5) {
-    if (-not (Test-Path "tools/uvr5/uvr5_weights")) {
-        Write-Info "Downloading UVR5 Models..."
-        Invoke-Download -Uri $UVR5URL -OutFile "uvr5_weights.zip"
-        Invoke-Unzip "uvr5_weights.zip" "tools/uvr5"
-        Write-Success "UVR5 Models Downloaded"
+    $uvrTarget = "tools/uvr5"
+    if (-not (Test-Path "$uvrTarget/uvr5_weights")) {
+        Write-Info "下载 UVR5 语音分离模型..."
+        $zipPath = "uvr5_weights.zip"
+        Invoke-Download -Uri $UVR5URL -OutFile $zipPath
+        Invoke-Unzip -ZipPath $zipPath -Destination $uvrTarget
+        Write-Success "UVR5 模型下载完成"
     } else {
-        Write-Info "UVR5 Models Exists"
-        Write-Info "Skip Downloading UVR5 Models"
+        Write-Info "UVR5 模型已存在，跳过下载"
     }
 }
 
-switch ($Device) {
-    "CU128" {
-        Write-Info "Installing PyTorch For CUDA 12.8..."
-        Invoke-Pip torch torchaudio --index-url "https://download.pytorch.org/whl/cu128"
-    }
-    "CU126" {
-        Write-Info "Installing PyTorch For CUDA 12.6..."
-        Invoke-Pip torch torchaudio --index-url "https://download.pytorch.org/whl/cu126"
-    }
-    "CPU" {
-        Write-Info "Installing PyTorch For CPU..."
-        Invoke-Pip torch torchaudio --index-url "https://download.pytorch.org/whl/cpu"
+$pythonCmd = $null
+foreach ($candidate in @("python", "python3")) {
+    $cmd = Get-Command $candidate -ErrorAction SilentlyContinue
+    if ($cmd) {
+        $pythonCmd = $cmd.Path
+        break
     }
 }
-Write-Success "PyTorch Installed"
 
-Write-Info "Installing Python Dependencies From requirements.txt..."
-Invoke-Pip -r extra-req.txt --no-deps
-Invoke-Pip -r requirements.txt
-Write-Success "Python Dependencies Installed"
+if (-not $pythonCmd) {
+    Write-WarningMessage "未找到 Python，可在安装依赖后重新运行脚本以下载 NLTK 数据和 Open JTalk 字典"
+} else {
+    try {
+        $pythonPrefix = (& $pythonCmd "-c" "import sys; print(sys.prefix)").Trim()
+    } catch {
+        $pythonPrefix = ""
+    }
 
-Write-Info "Downloading NLTK Data..."
-Invoke-Download -Uri $NLTKURL -OutFile "nltk_data.zip"
-Invoke-Unzip "nltk_data.zip" (python -c "import sys; print(sys.prefix)").Trim()
+    if ($pythonPrefix -and -not (Test-Path (Join-Path $pythonPrefix "nltk_data\tokenizers\punkt"))) {
+        Write-Info "下载 NLTK 数据..."
+        $zipPath = "nltk_data.zip"
+        Invoke-Download -Uri $NLTKURL -OutFile $zipPath
+        Invoke-Unzip -ZipPath $zipPath -Destination $pythonPrefix
+        Write-Success "NLTK 数据下载完成"
+    } elseif ($pythonPrefix) {
+        Write-Info "NLTK 数据已存在，跳过下载"
+    } else {
+        Write-WarningMessage "Python 环境未就绪，跳过 NLTK 数据下载"
+    }
 
-Write-Info "Downloading Open JTalk Dict..."
-Invoke-Download -Uri $OpenJTalkURL -OutFile "open_jtalk_dic_utf_8-1.11.tar.gz"
-$target = (python -c "import os, pyopenjtalk; print(os.path.dirname(pyopenjtalk.__file__))").Trim()
-tar -xzf open_jtalk_dic_utf_8-1.11.tar.gz -C $target
-Remove-Item "open_jtalk_dic_utf_8-1.11.tar.gz" -Force
-Write-Success "Open JTalk Dic Downloaded"
+    try {
+        $pyopenjtalkPath = (& $pythonCmd "-c" "import os, pyopenjtalk; print(os.path.dirname(pyopenjtalk.__file__))").Trim()
+    } catch {
+        $pyopenjtalkPath = ""
+    }
 
-Write-Success "Installation Completed"
+    if ($pyopenjtalkPath -and -not (Test-Path (Join-Path $pyopenjtalkPath "open_jtalk_dic_utf_8-1.11"))) {
+        Write-Info "下载 Open JTalk 字典..."
+        $tgzPath = "open_jtalk_dic_utf_8-1.11.tar.gz"
+        Invoke-Download -Uri $OpenJTalkURL -OutFile $tgzPath
+        tar -xzf $tgzPath -C $pyopenjtalkPath
+        Remove-Item $tgzPath -Force
+        Write-Success "Open JTalk 字典下载完成"
+    } elseif ($pyopenjtalkPath) {
+        Write-Info "Open JTalk 字典已存在，跳过下载"
+    } else {
+        Write-WarningMessage "pyopenjtalk 未安装，跳过 Open JTalk 字典下载"
+    }
+}
+
+Write-Host ""
+Write-Success "================================"
+Write-Success "所有模型下载完成"
+Write-Success "================================"
+Write-Host ""
+Write-Info "下一步操作："
+Write-Info "  1. 返回项目根目录：cd .."
+Write-Info "  2. 安装 Python 依赖：uv sync"
+Write-Info "  3. 启动 TTS 服务：uv run python gpt_sovits/api_v2.py"

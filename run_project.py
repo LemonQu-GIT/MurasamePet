@@ -120,10 +120,21 @@ def check_homebrew():
 def check_cuda():
     """检查Windows CUDA"""
     try:
-        result = subprocess.run(["nvcc", "--version"], capture_output=True, text=True)
-        return result.returncode == 0
-    except:
-        return False
+        import torch
+        if torch.cuda.is_available():
+            return True
+    except Exception:
+        pass
+
+    for cmd in (["nvidia-smi"], ["nvcc", "--version"]):
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            if result.returncode == 0:
+                return True
+        except Exception:
+            continue
+
+    return False
 
 def check_uv():
     """检查uv"""
@@ -348,7 +359,19 @@ def run_install():
     log("注意: 新版 install.sh 仅下载模型，依赖由根项目 uv 管理")
     
     # 使用 ModelScope（国内推荐）
-    cmd = ["bash", "gpt_sovits/install.sh", "--source", "ModelScope"]
+    if system == "Windows":
+        device_option = "CPU"
+        if check_cuda():
+            device_option = "CU128"
+        cmd = [
+            "powershell",
+            "-ExecutionPolicy", "Bypass",
+            "-File", "gpt_sovits/install.ps1",
+            "-Device", device_option,
+            "-Source", "ModelScope"
+        ]
+    else:
+        cmd = ["bash", "gpt_sovits/install.sh", "--source", "ModelScope"]
     
     if run_command(cmd):
         log("预训练模型下载成功", "SUCCESS")

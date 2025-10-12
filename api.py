@@ -13,6 +13,8 @@ import torch
 import platform
 import sys
 import os
+from transformers import AutoModelForCausalLM, AutoTokenizer
+from peft import PeftModel
 from Murasame.utils import get_config
 
 # 确保标准输出使用 UTF-8 编码，防止中文乱码
@@ -48,7 +50,7 @@ else:
     print("🖥️ 检测到非 macOS 系统，初始化 PyTorch 引擎...")
     ENGINE = "torch"
     # 检测设备优先级：MPS > CUDA > CPU
-    if torch.backends.mps.is_available():
+    if hasattr(torch, "backends") and hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
         DEVICE = "mps"
         print("✅ PyTorch 引擎加载成功 (使用 MPS 加速)")
     elif torch.cuda.is_available():
@@ -108,11 +110,60 @@ def load_model_and_tokenizer():
         print("🔧 正在加载 PyTorch LoRA 模型...")
 
         try:
-            print("🔄 正在从磁盘读取模型文件...")
-            model, tokenizer = load(adapter_path)
+            print("🔄 正在准备基础模型和 LoRA 适配器...")
+            adapter_config_path = os.path.join(adapter_path, "adapter_config.json")
+            if not os.path.exists(adapter_config_path):
+                print(f"❌ 严重错误：未找到适配器配置文件 {adapter_config_path}")
+                print("💡 请运行 download.py 以下载基础模型与 LoRA 适配器")
+                exit(1)
+
+            with open(adapter_config_path, "r", encoding="utf-8") as f:
+                adapter_config = json.load(f)
+
+            base_model_path = adapter_config.get("base_model_name_or_path")
+            if not base_model_path:
+                print("❌ 严重错误：适配器配置缺少 base_model_name_or_path")
+                exit(1)
+            if not os.path.exists(base_model_path):
+                print(f"❌ 严重错误：基础模型路径不存在: {base_model_path}")
+                print("💡 请确认 Qwen3-14B 模型是否已下载并与 adapter_config.json 中的路径一致")
+                exit(1)
+
+            torch_dtype = torch.float16 if DEVICE == "cuda" else torch.float32
+            device_map = "auto" if DEVICE == "cuda" else None
+
+            print(f"📦 正在加载基础模型: {base_model_path}")
+            base_model = AutoModelForCausalLM.from_pretrained(
+                base_model_path,
+                torch_dtype=torch_dtype,
+                device_map=device_map,
+                trust_remote_code=True,
+            )
+
+            print(f"🎯 正在应用 LoRA 适配器: {adapter_path}")
+            model = PeftModel.from_pretrained(
+                base_model,
+                adapter_path,
+                device_map=device_map,
+            )
+
+            if DEVICE in ("cpu", "cuda"):
+                model = model.to(DEVICE)
+
+            model.eval()
+
+            tokenizer = AutoTokenizer.from_pretrained(
+                base_model_path,
+                trust_remote_code=True,
+            )
+            if tokenizer.pad_token is None:
+                tokenizer.pad_token = tokenizer.eos_token
+            tokenizer.padding_side = "left"
+
             print("✅ LoRA 模型加载成功！")
-            print(f"   📍 模型路径: {adapter_path}")
-            print(f"   🏷️ 模型类型: PyTorch LoRA")
+            print(f"   📍 基础模型: {base_model_path}")
+            print(f"   📍 适配器: {adapter_path}")
+            print(f"   🏷️ 推理设备: {DEVICE}")
         except Exception as e:
             print(f"❌ 严重错误：无法加载 PyTorch LoRA 模型！")
             print(f"错误详情: {e}")
@@ -229,15 +280,44 @@ async def create_chat(request: Request):
     )
     print("✅ 聊天模板应用完成")
 
-    # MLX LM 推理
+    max_new_tokens = int(json_post_list.get('max_new_tokens', 2048))
+    max_new_tokens = max(1, max_new_tokens)
+    temperature = float(json_post_list.get('temperature', 0.7))
+    top_p = float(json_post_list.get('top_p', 0.9))
+    top_p = max(0.01, min(top_p, 1.0))
+
+    # 推理
     print("🤖 正在生成回复...")
-    response = generate(
-        model, tokenizer,
-        prompt=text,
-        max_tokens=json_post_list.get('max_new_tokens', 2048),
-        verbose=False
-    )
-    reply = response.strip()
+    if ENGINE == "mlx":
+        response = generate(
+            model, tokenizer,
+            prompt=text,
+            max_tokens=max_new_tokens,
+            verbose=False
+        )
+        reply = response.strip()
+    else:
+        encoded = tokenizer(
+            text,
+            return_tensors="pt",
+        )
+        encoded = {k: v.to(DEVICE) for k, v in encoded.items()}
+        generation_kwargs = {
+            "max_new_tokens": max_new_tokens,
+            "do_sample": True,
+            "temperature": max(0.01, temperature),
+            "top_p": top_p,
+            "eos_token_id": tokenizer.eos_token_id,
+            "pad_token_id": tokenizer.eos_token_id,
+        }
+        with torch.no_grad():
+            generated = model.generate(
+                **encoded,
+                **generation_kwargs,
+            )
+        generated_tokens = generated[0, encoded["input_ids"].shape[-1]:]
+        reply = tokenizer.decode(generated_tokens, skip_special_tokens=True).strip()
+
     print(f"✅ 回复生成完成 (长度: {len(reply)} 字符)")
 
     history.append({"role": "assistant", "content": reply})
