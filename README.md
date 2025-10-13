@@ -218,6 +218,19 @@ python run_project.py
 }
 ```
 
+### 参数详解
+
+| 参数路径 | 类型 | 描述 | 示例 |
+| :--- | :--- | :--- | :--- |
+| `openrouter_api_key` | string | **(可选)** OpenRouter的API密钥。如果`server`中的任何端点指向OpenRouter，则此项为**必需**。 | `"sk-or-v1-..."` |
+| `enable_vl` | boolean | **(全局)** 是否启用桌宠的视觉能力（屏幕捕捉和分析）。`true`为启用，`false`为禁用。 | `true` |
+| `user.api` | string | **(客户端)** 核心API服务(`api.py`)的URL地址。桌宠客户端会连接到此地址。 | `"http://127.0.0.1:28565"` |
+| `user.gpt_sovits` | string | **(客户端)** TTS语音合成服务的URL地址。 | `"http://127.0.0.1:9880/tts"` |
+| `server.qwen3` | string | **(服务端)** 通用问答模型(Qwen3)的后端服务地址。可以指向本地Ollama或云端OpenRouter。 | `"http://localhost:11434"` |
+| `server.qwenvl` | string | **(服务端)** 视觉语言模型(Qwen-VL)的后端服务地址。可以指向本地Ollama或云端OpenRouter。 | `"https://openrouter.ai/api/v1/chat/completions"` |
+| `display.preset` | string | **(显示)** 桌宠的显示预设。可选值为 `"compact"`, `"balanced"`, `"standard"`, `"full"`, `"custom"`。 | `"balanced"` |
+| `display.custom.*` | object | **(显示)** 当`preset`为`"custom"`时生效，用于微调桌宠的显示比例和文本位置。 | `{"visible_ratio": 0.4, ...}` |
+
 ### `config.json` 完整示例
 
 这是一个典型的本地部署配置：
