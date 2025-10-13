@@ -75,11 +75,26 @@ def load_model_and_tokenizer():
         print("🍎 正在加载合并后的 MLX 模型 (Qwen3-14B-Murasame-Chat-MLX-Int4)...")
 
         # 检查合并后的模型是否存在
-        # 检查 MLX 模型必需文件
-        required_files = ["model.safetensors", "tokenizer.json", "config.json"]
-        missing_files = [f for f in required_files if not os.path.exists(os.path.join(adapter_path, f))]
+        # 检查 MLX 模型必需文件（配置文件和模型权重）
+        required_static_files = ["tokenizer.json", "config.json"]
+        missing_files = [f for f in required_static_files if not os.path.exists(os.path.join(adapter_path, f))]
 
-        if missing_files:
+        # 检查模型权重文件（单个 model.safetensors 或分片 model-*.safetensors）
+        has_model_weights = False
+        try:
+            if os.path.exists(os.path.join(adapter_path, "model.safetensors")):
+                has_model_weights = True
+            else:
+                if any(f.startswith("model-") and f.endswith(".safetensors") for f in os.listdir(adapter_path)):
+                    has_model_weights = True
+        except FileNotFoundError:
+             # 如果 adapter_path 不存在，os.listdir 会报错
+             pass
+
+        if missing_files or not has_model_weights:
+            if not has_model_weights:
+                missing_files.append("model.safetensors (或 model-*.safetensors)")
+            
             print(f"❌ 严重错误：在 {adapter_path} 中缺少以下 MLX 模型文件: {', '.join(missing_files)}")
             print("💡 请确保已为 macOS 下载了正确的合并模型，而不是 Windows 使用的 LoRA 文件。")
             print("   - 运行 'python download.py' 脚本来获取正确的模型。")
