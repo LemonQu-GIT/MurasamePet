@@ -224,13 +224,7 @@ def create_response(response_text, history, status=200):
 # MLX 不需要手动垃圾回收
 
 
-def should_use_openrouter(config):
-    """检测是否应该使用 OpenRouter"""
-    api_key = config.get('openrouter_api_key', '')
-    return bool(api_key.strip())  # 有非空值就使用 OpenRouter
-
-
-def call_openrouter_api(api_key, model, messages, image_url=None, max_tokens=2048):
+def call_openrouter_api(config, api_key, model, messages, image_url=None, max_tokens=2048):
     """调用 OpenRouter API"""
     headers = {
         "Authorization": f"Bearer {api_key}",
@@ -262,8 +256,9 @@ def call_openrouter_api(api_key, model, messages, image_url=None, max_tokens=204
         "max_tokens": max_tokens
     }
 
-    # 硬编码 OpenRouter 地址
-    response = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=data)
+    # 从配置中获取 OpenRouter 地址，如果不存在则使用默认值
+    endpoint_url = config.get('endpoints', {}).get('openrouter', "https://openrouter.ai/api/v1/chat/completions")
+    response = requests.post(endpoint_url, headers=headers, json=data)
     response.raise_for_status()
     return response.json()
 
@@ -343,77 +338,45 @@ async def create_qwen3_chat(request: Request):
         history = history + [{'role': role, 'content': prompt}]
 
     config = get_config()
+    api_key = config.get('openrouter_api_key', '')
+    endpoint_url = config.get('server', {}).get('qwen3', '')
 
-    if should_use_openrouter(config):
-        # 优先使用 OpenRouter 的 qwen3-235b 模型
-        print("🌐 使用 OpenRouter API (qwen3-235b-a22b 模型)...")
-        api_key = config.get('openrouter_api_key', '')
+    # 仅当 endpoint 指向 openrouter 且 API key 存在时，才使用 OpenRouter
+    if "openrouter.ai" in endpoint_url and api_key.strip():
+        print(f"🌐 检测到 qwen3 endpoint 指向 OpenRouter，使用 API Key 进行调用...")
         try:
-            print("🔄 正在调用 OpenRouter API...")
             result = call_openrouter_api(
+                config,
                 api_key,
-                "qwen/qwen3-235b-a22b",  # 用户指定的模型
+                "qwen/qwen3-235b-a22b",
                 history,
-                max_tokens=4096  # 辅助功能可能需要更多 tokens
+                max_tokens=4096
             )
             final_response = result['choices'][0]['message']['content']
             print("✅ OpenRouter API 调用成功")
         except Exception as e:
-            print(f"⚠️ OpenRouter API 调用失败，回退到 Ollama: {e}")
-            # 回退到 Ollama
-            print("🔄 正在切换到本地 Ollama 服务...")
-            endpoint_url = config['endpoints']['ollama']
-            response = None
-            try:
-                print(f"📡 正在调用 Ollama API ({endpoint_url})...")
-                response = requests.post(
-                    f"{endpoint_url}/api/chat",
-                    json={"model": "qwen3:14b", "messages": history,
-                          "stream": False, "options": {"keep_alive": -1}},
-                )
-                print(f"📊 Ollama 响应状态: {response.status_code}")
-                print(f"📋 Ollama 响应头: {response.headers}")
-                print(f"📄 Ollama 响应内容 (前500字符): {response.text[:500]}")
-                final_response = response.json()['message']['content']
-                print("✅ Ollama API 调用成功")
-            except requests.exceptions.JSONDecodeError as e:
-                print(f"❌ Ollama JSON 解析错误: {e}")
-                if response:
-                    print(f"响应状态: {response.status_code}")
-                    print(f"响应内容: {response.text}")
-                    raise Exception(f"Ollama API 返回了无效的 JSON。状态: {response.status_code}, 响应: {response.text[:500]}")
-                else:
-                    raise Exception("Ollama API 返回了无效的 JSON。未收到响应。")
-            except Exception as e:
-                print(f"❌ 调用 Ollama API 时出错: {e}")
-                raise
+            error_msg = f"OpenRouter API 错误: {str(e)}"
+            print(f"❌ {error_msg}")
+            log_response(error_msg)
+            return create_response(error_msg, history, status=500)
     else:
-        # 使用 Ollama
-        print("🏠 使用本地 Ollama API (qwen3:14b 模型)...")
-        endpoint_url = config['endpoints']['ollama']
+        # 使用本地端点 (Ollama 或其他)
+        print(f"🏠 使用本地端点 ({endpoint_url}) 进行调用...")
         response = None
         try:
-            print(f"📡 正在调用 Ollama API ({endpoint_url})...")
             response = requests.post(
                 f"{endpoint_url}/api/chat",
                 json={"model": "qwen3:14b", "messages": history,
                       "stream": False, "options": {"keep_alive": -1}},
             )
-            print(f"📊 Ollama 响应状态: {response.status_code}")
-            print(f"📋 Ollama 响应头: {response.headers}")
-            print(f"📄 Ollama 响应内容 (前500字符): {response.text[:500]}")
+            response.raise_for_status() # 检查 HTTP 错误
             final_response = response.json()['message']['content']
-            print("✅ Ollama API 调用成功")
-        except requests.exceptions.JSONDecodeError as e:
-            print(f"❌ Ollama JSON 解析错误: {e}")
-            if response:
+            print("✅ 本地 API 调用成功")
+        except requests.exceptions.RequestException as e:
+            print(f"❌ 调用本地 API 时出错: {e}")
+            if response is not None:
                 print(f"响应状态: {response.status_code}")
-                print(f"响应内容: {response.text}")
-                raise Exception(f"Ollama API 返回了无效的 JSON。状态: {response.status_code}, 响应: {response.text[:500]}")
-            else:
-                raise Exception("Ollama API 返回了无效的 JSON。未收到响应。")
-        except Exception as e:
-            print(f"❌ 调用 Ollama API 时出错: {e}")
+                print(f"响应内容: {response.text[:500]}")
             raise
 
     history = history + [{'role': 'assistant', 'content': final_response}]
@@ -430,27 +393,26 @@ async def create_qwenvl_chat(request: Request):
     if "image" in json_post_list:
         image_url = json_post_list.get('image')
         print(f"🖼️ 检测到图像输入: {image_url[:100]}...")
-        history = history + \
-            [{'role': 'user', 'content': prompt, 'images': [image_url]}]
+        history = history + [{'role': 'user', 'content': prompt, 'images': [image_url]}]
     else:
         print("📝 纯文本模式（无图像输入）")
         history = history + [{'role': 'user', 'content': prompt}]
 
     config = get_config()
+    api_key = config.get('openrouter_api_key', '')
+    endpoint_url = config.get('server', {}).get('qwenvl', '')
+    image_url_for_api = json_post_list.get('image') if "image" in json_post_list else None
 
-    if should_use_openrouter(config):
-        # 使用 OpenRouter，支持图像输入
-        print("🌐 使用 OpenRouter API (qwen-2.5-vl-7b-instruct 视觉模型)...")
-        api_key = config.get('openrouter_api_key', '')
-        image_url = json_post_list.get('image') if "image" in json_post_list else None
-
+    # 仅当 endpoint 指向 openrouter 且 API key 存在时，才使用 OpenRouter
+    if "openrouter.ai" in endpoint_url and api_key.strip():
+        print(f"🌐 检测到 qwenvl endpoint 指向 OpenRouter，使用 API Key 进行调用...")
         try:
-            print("🔄 正在调用 OpenRouter 视觉 API...")
             result = call_openrouter_api(
+                config,
                 api_key,
-                "qwen/qwen-2.5-vl-7b-instruct",  # OpenRouter 视觉模型名称
+                "qwen/qwen-2.5-vl-7b-instruct",
                 history,
-                image_url=image_url
+                image_url=image_url_for_api
             )
             final_response = result['choices'][0]['message']['content']
             print("✅ OpenRouter 视觉 API 调用成功")
@@ -460,22 +422,24 @@ async def create_qwenvl_chat(request: Request):
             log_response(error_msg)
             return create_response(error_msg, history, status=500)
     else:
-        # 使用本地 Ollama API
-        print("🏠 使用本地 Ollama API (qwen2.5vl:7b 视觉模型)...")
-        endpoint_url = config['endpoints']['ollama']
-        print(f"📡 正在调用 Ollama 视觉 API ({endpoint_url})...")
-        response = requests.post(
-            f"{endpoint_url}/api/chat",
-            json={"model": "qwen2.5vl:7b", "messages": history,
-                  "stream": False, "options": {"keep_alive": -1}},
-        )
-        final_response = response.json()['message']['content']
-        print("✅ Ollama 视觉 API 调用成功")
+        # 使用本地端点 (Ollama 或其他)
+        print(f"🏠 使用本地端点 ({endpoint_url}) 进行调用...")
+        try:
+            response = requests.post(
+                f"{endpoint_url}/api/chat",
+                json={"model": "qwen2.5vl:7b", "messages": history,
+                      "stream": False, "options": {"keep_alive": -1}},
+            )
+            response.raise_for_status()
+            final_response = response.json()['message']['content']
+            print("✅ 本地视觉 API 调用成功")
+        except requests.exceptions.RequestException as e:
+            print(f"❌ 调用本地视觉 API 时出错: {e}")
+            raise
 
     history = history + [{'role': 'assistant', 'content': final_response}]
     log_response(final_response)
     return create_response(final_response, history)
-
 
 if __name__ == '__main__':
     print("=" * 60)

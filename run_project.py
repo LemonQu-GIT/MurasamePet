@@ -92,22 +92,29 @@ def get_system_info():
     return system, machine, processor, memory_info, gpu_info
 
 def check_config():
-    """检查config.json"""
+    """检查并解析config.json"""
     try:
         with open("config.json", "r", encoding="utf-8") as f:
             config = json.load(f)
-        api_key = config.get("openrouter_api_key")
-        endpoints = config.get("endpoints", {})
-        murasame_endpoint = endpoints.get("murasame", "")
-        is_murasame_local = any(local in murasame_endpoint for local in ["127.", "localhost", "fe80", "::1"])
-        all_endpoints_local = all(
-            any(local in ep for local in ["127.", "localhost", "fe80", "::1"])
-            for ep in endpoints.values()
-        )
-        return api_key, is_murasame_local, all_endpoints_local
+        
+        # 提取所有需要的配置项
+        user_config = config.get("user", {})
+        server_config = config.get("server", {})
+        
+        parsed_config = {
+            "api_key": config.get("openrouter_api_key"),
+            "endpoints": {
+                "api": user_config.get("api", ""),
+                "gpt_sovits": user_config.get("gpt_sovits", ""),
+                "qwen3": server_config.get("qwen3", ""),
+                "qwenvl": server_config.get("qwenvl", "")
+            }
+        }
+        return parsed_config
+        
     except Exception as e:
-        log(f"读取config.json失败: {e}", "ERROR")
-        return None, False, False
+        log(f"读取或解析config.json失败: {e}", "ERROR")
+        return None
 
 def check_homebrew():
     """检查macOS Homebrew"""
@@ -491,7 +498,44 @@ def main():
     print("=" * 70)
     log("开始检测和配置环境...")
 
-    # 0. 检查系统中是否存在Python 3.10（uv会使用它来运行服务）
+    # 1. 解析并验证配置
+    log("📋 正在读取并分析配置文件...")
+    config = check_config()
+    if not config:
+        sys.exit(1)
+
+    def is_local(endpoint):
+        return any(local in endpoint for local in ["127.", "localhost", "fe80", "::1"])
+
+    def analyze_endpoint(name, endpoint):
+        if is_local(endpoint):
+            return f"🏠 {name}: 在本地运行"
+        elif "openrouter.ai" in endpoint:
+            return f"🌐 {name}: 通过 OpenRouter 运行"
+        else:
+            return f"☁️ {name}: 在云端运行 ({endpoint})"
+
+    log("🔍 服务配置分析如下:")
+    log(analyze_endpoint("Murasame (api.py)", config["endpoints"]["api"]))
+    log(analyze_endpoint("GPT-SoVITS", config["endpoints"]["gpt_sovits"]))
+    log(analyze_endpoint("Qwen3", config["endpoints"]["qwen3"]))
+    log(analyze_endpoint("Qwen-VL", config["endpoints"]["qwenvl"]))
+    
+    # 关键配置校验
+    api_is_local = is_local(config["endpoints"]["api"])
+    uses_openrouter = "openrouter.ai" in config["endpoints"]["qwen3"] or "openrouter.ai" in config["endpoints"]["qwenvl"]
+    api_key = config.get("api_key")
+    
+    if api_is_local and uses_openrouter and (not api_key or api_key == "YOUR_OPENROUTER_API_KEY_HERE"):
+        log("=" * 70, "ERROR")
+        log("配置错误：检测到本地服务配置为使用 OpenRouter，但未提供有效的 OpenRouter API Key。", "ERROR")
+        log("请在 config.json 中填写 'openrouter_api_key'。", "ERROR")
+        log("=" * 70, "ERROR")
+        sys.exit(1)
+    
+    log("✅ 配置检查通过", "SUCCESS")
+
+    # 2. 检查Python版本
     is_current_310, python310_path = find_python310()
     if python310_path:
         if is_current_310:
@@ -511,20 +555,7 @@ def main():
             log("💡 Linux安装命令示例: sudo apt install python3.10", "INFO")
         sys.exit(1)
 
-    # 1. 检测环境
-    log("📋 正在读取配置文件...")
-    api_key, is_murasame_local, all_endpoints_local = check_config()
-    skip_device_check_23 = False
-    if api_key and not is_murasame_local:
-        skip_device_check_23 = True
-        log("🌐 根据配置，该项目所有模型运行在云端", "SUCCESS")
-    elif not api_key and not all_endpoints_local:
-        skip_device_check_23 = True
-        log("⚡ 根据配置，该项目部分模型运行在本地，请注意内存消耗", "WARNING")
-    else:
-        log("🏠 根据配置，该项目部分模型运行在本地，请注意内存消耗", "WARNING")
-
-    # 2. 检测设备
+    # 3. 检测设备
     log("💻 正在检测系统信息...")
     system, machine, processor, memory, gpu = get_system_info()
     log(f"🖥️ 系统: {system}")
@@ -534,8 +565,11 @@ def main():
     if gpu:
         log(f"🎮 显卡: {gpu}")
 
-    if not skip_device_check_23:
-        # 检查是否需要结束脚本
+    # 如果所有服务都在云端，可以跳过本地设备检查
+    all_remote = not any(is_local(ep) for ep in config["endpoints"].values())
+    if all_remote:
+        log("🌐 所有服务均配置为在云端运行，跳过本地硬件兼容性检查。", "INFO")
+    else:
         if system == "Darwin" and "Intel" in processor:
             log("使用Intel CPU的macOS设备，MLX框架和PyTorch框架均不兼容，无法运行AI模型", "ERROR")
             log("脚本结束")
@@ -551,7 +585,7 @@ def main():
             log("脚本结束")
             sys.exit(1)
 
-    # 3. 检测是否需要配置环境
+    # 4. 检测是否需要配置环境
     need_config = False
     config_reasons = []
 
@@ -560,7 +594,7 @@ def main():
             need_config = True
             config_reasons.append("macOS未安装ARM架构的Homebrew")
     elif system == "Windows":
-        if not check_cuda():
+        if not check_cuda() and not all_remote: # 如果是云端部署，可以没有CUDA
             need_config = True
             config_reasons.append("Windows未安装CUDA")
 
@@ -568,16 +602,13 @@ def main():
         need_config = True
         config_reasons.append("未安装uv")
 
-    # 注意：不再检查当前运行的Python版本
-    # 因为已经在步骤0确认系统中存在Python 3.10，uv会自动使用它
-
-    if not check_download_executed():
+    if not check_download_executed() and is_local(config["endpoints"]["api"]):
         need_config = True
-        config_reasons.append("download.py未执行")
+        config_reasons.append("download.py未执行 (Murasame模型未下载)")
 
-    if not check_install_executed():
+    if not check_install_executed() and is_local(config["endpoints"]["gpt_sovits"]):
         need_config = True
-        config_reasons.append("install.sh/ps1未执行")
+        config_reasons.append("install.sh/ps1未执行 (GPT-SoVITS模型未下载)")
 
     if need_config:
         log("⚙️ 环境存在问题，需要配置:", "WARNING")
@@ -588,25 +619,23 @@ def main():
         if system == "Darwin":
             if not check_homebrew():
                 install_homebrew()
-            # 不再尝试安装Python 3.10，因为步骤0已确认存在
             if not check_uv():
                 install_uv_macos()
-                if check_uv():  # 如果pip安装了uv，卸载
+                if check_uv():
                     uninstall_pip_uv()
 
         elif system == "Windows":
-            if not check_cuda():
+            if not check_cuda() and not all_remote:
                 log("请安装CUDA: https://www.cnblogs.com/AirCL/p/16963463.html", "ERROR")
                 sys.exit(1)
             if not check_uv():
                 log("请安装uv", "ERROR")
                 sys.exit(1)
 
-        if not check_download_executed():
+        if not check_download_executed() and is_local(config["endpoints"]["api"]):
             run_download()
 
-        if not check_install_executed():
-            # 先uv sync安装依赖
+        if not check_install_executed() and is_local(config["endpoints"]["gpt_sovits"]):
             log("执行uv sync以安装依赖...")
             if not run_command(["uv", "sync"]):
                 log("uv sync失败", "ERROR")

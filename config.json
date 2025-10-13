@@ -1,13 +1,14 @@
 {
     "openrouter_api_key": "YOUR_OPENROUTER_API_KEY_HERE",
-    "endpoints": {
-        "ollama": "http://localhost:11434",
-        "qwen3": "http://localhost:28565/qwen3",
-        "qwenvl": "http://localhost:28565/qwenvl",
-        "murasame": "http://localhost:28565/chat",
-        "murasame-sovits": "http://127.0.0.1:9880/tts"
-    },
     "enable_vl": true,
+    "user": {
+        "api": "http://127.0.0.1:28565",
+        "gpt_sovits": "http://127.0.0.1:9880/tts"
+    },
+    "server": {
+        "qwen3": "http://localhost:11434",
+        "qwenvl": "http://localhost:11434"
+    },
     "display": {
         "preset": "balanced",
         "custom": {
