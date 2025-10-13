@@ -156,17 +156,19 @@ if config_path in [None, ""]:
 
 tts_config = TTS_Config(config_path)
 
-# 自动检测设备并覆盖配置文件中的设置
-print("⚙️ 正在自动检测计算设备...")
-if torch.cuda.is_available():
-    tts_config.device = "cuda"
-    print("✅ 检测到 CUDA，将使用 NVIDIA GPU 进行推理。")
-elif platform.system() == "Darwin" and hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
-    tts_config.device = "mps"
-    print("🍎 检测到 macOS，将使用 Apple Silicon (MPS) 进行推理。")
-else:
-    tts_config.device = "cpu"
-    print("⚠️ 未检测到兼容的 GPU，将使用 CPU 进行推理。")
+# 注释掉自动检测设备并覆盖配置文件中的设置的逻辑
+# 现在，我们将完全依赖于 tts_infer.yaml 文件中的 device 设置
+# print("⚙️ 正在自动检测计算设备...")
+# if torch.cuda.is_available():
+#     tts_config.device = "cuda"
+#     print("✅ 检测到 CUDA，将使用 NVIDIA GPU 进行推理。")
+# elif platform.system() == "Darwin" and hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+#     tts_config.device = "mps"
+#     print("🍎 检测到 macOS，将使用 Apple Silicon (MPS) 进行推理。")
+# else:
+#     tts_config.device = "cpu"
+#     print("⚠️ 未检测到兼容的 GPU，将使用 CPU 进行推理。")
+print(f"✅ 已从配置文件加载设备: {tts_config.device}")
 
 print(tts_config)
 tts_pipeline = TTS(tts_config)

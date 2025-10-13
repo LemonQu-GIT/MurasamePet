@@ -143,6 +143,58 @@ def check_cuda():
 
     return False
 
+def check_mps_support_and_exit_on_fail():
+    """
+    检查 PyTorch 的 MPS 支持，如果不支持则报错并退出。
+    """
+    log("🔬 正在检查 PyTorch MPS (Apple Silicon GPU) 支持...")
+    
+    # 仅在macOS上执行
+    if platform.system() != "Darwin":
+        log("非 macOS 系统，跳过 MPS 检查。", "DEBUG")
+        return
+
+    try:
+        import torch
+    except ImportError:
+        log("PyTorch 未安装，无法检查 MPS 支持。依赖将在后续步骤中安装。", "WARNING")
+        return
+
+    # 1. 检查 PyTorch 是否在编译时就包含了 MPS 支持
+    if not torch.backends.mps.is_built():
+        log("=" * 70, "ERROR")
+        log("当前 PyTorch 版本未编译 MPS 支持。", "ERROR")
+        log("请确保您安装了适用于 arm64 (Apple Silicon) 的 PyTorch。", "ERROR")
+        log("💡 解决方案: 脚本将尝试通过 'uv sync' 自动修复。如果问题仍然存在，请检查您的Python环境。", "ERROR")
+        log("=" * 70, "ERROR")
+        sys.exit(1)
+    
+    # 2. 检查 MPS 是否在当前环境下可用
+    if not torch.backends.mps.is_available():
+        log("=" * 70, "ERROR")
+        log("MPS 设备当前不可用。", "ERROR")
+        log("这可能是因为您的 macOS 版本过低 (需要 12.3 或更高版本)。", "ERROR")
+        log("=" * 70, "ERROR")
+        sys.exit(1)
+
+    # 3. 尝试执行一个简单的计算
+    try:
+        device = torch.device("mps")
+        x = torch.tensor([1.0, 2.0, 3.0], device=device)
+        y = x * 2
+        # 简单验证计算结果
+        if y[0].item() != 2.0:
+             raise RuntimeError("MPS 计算结果不正确。")
+    except Exception as e:
+        log("=" * 70, "ERROR")
+        log("在 MPS 设备上执行计算时出错！", "ERROR")
+        log(f"   错误详情: {e}", "ERROR")
+        log("这表明尽管 MPS 显示可用，但实际运行时存在问题。", "ERROR")
+        log("=" * 70, "ERROR")
+        sys.exit(1)
+
+    log("✅ PyTorch MPS 支持检查通过。", "SUCCESS")
+
 def check_uv():
     """检查uv"""
     try:
@@ -383,8 +435,7 @@ def run_install():
     
     if run_command(cmd):
         log("预训练模型下载成功", "SUCCESS")
-        # 创建配置文件
-        create_tts_config()
+        # 创建配置文件的调用已移至main函数，以确保每次都执行
     else:
         log("预训练模型下载失败", "ERROR")
         log("提示: 可以手动运行 'cd gpt_sovits && bash install.sh --source ModelScope'", "WARNING")
@@ -401,13 +452,36 @@ def create_tts_config():
         os.makedirs(config_dir)
         log(f"创建配置目录: {config_dir}")
 
-    # 使用 auto 自动检测设备（优先级: MPS > CUDA > CPU）
-    device = "auto"
-    
-    # 检查是否是 CUDA 环境，如果是可以启用半精度
-    is_half = "false"
+    # 自动检测设备（优先级: MPS > CUDA > CPU）
+    log("🔬 正在检测最佳计算设备...")
     system = platform.system()
-    if system == "Windows" and check_cuda():
+    device = "cpu"  # 默认使用CPU
+    
+    if system == "Darwin":
+        # 对于macOS，我们依赖torch来检查mps
+        try:
+            import torch
+            if torch.backends.mps.is_available():
+                device = "mps"
+                log("✅ 检测到 Apple Silicon，将使用 MPS 设备。")
+            else:
+                log("ℹ️ 当前环境不支持 MPS，将使用 CPU。")
+        except ImportError:
+            # 如果torch尚未安装，我们预设为mps，因为之前的环境检查已确保是arm64架构
+            device = "mps"
+            log("⚠️ PyTorch 未安装，预设使用 MPS。将在依赖安装后由服务自行确认。", "WARNING")
+    elif system == "Windows":
+        if check_cuda():
+            device = "cuda"
+            log("✅ 检测到 NVIDIA GPU，将使用 CUDA 设备。")
+        else:
+            log("ℹ️ 未检测到 CUDA，将使用 CPU。")
+    else:
+        log(f"ℹ️ 在 {system} 系统上，默认使用 CPU。")
+
+    # 根据设备决定是否启用半精度
+    is_half = "false"
+    if device == "cuda":
         is_half = "true"  # CUDA 可以使用半精度提升性能
     
     # 创建包含 custom 键的配置
@@ -571,10 +645,17 @@ def main():
     if all_remote:
         log("🌐 所有服务均配置为在云端运行，跳过本地硬件兼容性检查。", "INFO")
     else:
-        if system == "Darwin" and "Intel" in processor:
-            log("使用Intel CPU的macOS设备，MLX框架和PyTorch框架均不兼容，无法运行AI模型", "ERROR")
-            log("脚本结束")
-            sys.exit(1)
+        if system == "Darwin":
+            if machine != "arm64": # 检查是否为 Apple Silicon
+                log("检测到非 Apple Silicon (arm64) 架构的 macOS 设备。", "ERROR")
+                log("本项目中的 AI 模型依赖于 Apple Silicon (M-系列芯片) 的 MPS 加速。", "ERROR")
+                log("Intel Mac 无法运行此项目。", "ERROR")
+                log("脚本结束")
+                sys.exit(1)
+            
+            # 插入 MPS 检查
+            check_mps_support_and_exit_on_fail()
+            
         elif system == "Linux":
             log("使用Linux系统的设备，未对该平台进行适配", "ERROR")
             log("如果你是开发者并有兴趣进行适配，可fork该仓库并提交PR，或向270598250@qq.com邮箱发送邮件以获得具体的要求和技术支持")
@@ -659,6 +740,10 @@ def main():
         log("uv sync 失败", "ERROR")
         sys.exit(1)
     log("✅ uv sync 成功", "SUCCESS")
+
+    # 确保TTS配置文件在启动前始终是最新的
+    log("📝 正在生成/更新TTS配置文件...")
+    create_tts_config()
 
     # 运行服务端
     print()
