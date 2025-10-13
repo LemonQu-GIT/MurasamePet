@@ -123,6 +123,8 @@ from fastapi import FastAPI, Response
 from fastapi.responses import StreamingResponse, JSONResponse
 import uvicorn
 from io import BytesIO
+import torch
+import platform
 from tools.i18n.i18n import I18nAuto
 
 # 在导入 TTS 之前，先导入并注册 GPT_SoVITS.utils 模块
@@ -153,6 +155,19 @@ if config_path in [None, ""]:
     config_path = "gpt_sovits/configs/tts_infer.yaml"
 
 tts_config = TTS_Config(config_path)
+
+# 自动检测设备并覆盖配置文件中的设置
+print("⚙️ 正在自动检测计算设备...")
+if torch.cuda.is_available():
+    tts_config.device = "cuda"
+    print("✅ 检测到 CUDA，将使用 NVIDIA GPU 进行推理。")
+elif platform.system() == "Darwin" and hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+    tts_config.device = "mps"
+    print("🍎 检测到 macOS，将使用 Apple Silicon (MPS) 进行推理。")
+else:
+    tts_config.device = "cpu"
+    print("⚠️ 未检测到兼容的 GPU，将使用 CPU 进行推理。")
+
 print(tts_config)
 tts_pipeline = TTS(tts_config)
 

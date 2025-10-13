@@ -378,6 +378,7 @@ def run_install():
             "-Source", "ModelScope"
         ]
     else:
+        device_option = "MPS"
         cmd = ["bash", "gpt_sovits/install.sh", "--source", "ModelScope"]
     
     if run_command(cmd):
