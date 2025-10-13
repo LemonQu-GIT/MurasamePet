@@ -11,6 +11,8 @@ import textwrap
 import os
 import time
 import sys
+import json
+import traceback
 import pyautogui
 
 
@@ -492,6 +494,11 @@ class Murasame(QLabel):
         self.llm_worker.start()
 
     def on_llm_result(self, result, history, emotion_history, embeddings_history, embeddings_layers, raw_response):
+        # 检查是否是错误信号
+        if raw_response == "Error" and not embeddings_layers:
+            self.show_text(result, typing=False)
+            return
+
         raw_response_md5 = hashlib.md5(raw_response.encode()).hexdigest()
         voice_path = os.path.join(os.getcwd(), 'voices', f"{raw_response_md5}.wav")
         QSound.play(voice_path)
@@ -608,7 +615,7 @@ class ScreenWorker(QThread):
                         {"role": "system", "content": sys_prompt}])
                     des, self.history = chat.think_image(
                         response, self.history)
-                    if des['des']:
+                    if des.get('des'):
                         print("scr worker：", des['des'])
                         self.llmworker = LLMWorker(
                             des['des'], self.history, [], [], role="system", interrupt_event=self.interrupt_event
@@ -705,6 +712,8 @@ class LLMWorker(QThread):
 
             while not os.path.exists(voice_path):
                 time.sleep(0.1)
+                if self.interrupt_event and self.interrupt_event.is_set():
+                    return
 
             print(len(history), "history")
             print(embeddings_layers, "b")
@@ -714,8 +723,47 @@ class LLMWorker(QThread):
             result = f"「{wrap_text(response)}」"
             self.finished.emit(result, history, emotion_history,
                                embeddings_history, embeddings_layers, translated)
-        finally:
-            pass
+        except Exception as e:
+            print("--- LLMWorker Error ---")
+            tb_str = traceback.format_exc()
+            print(tb_str)
+            print("-----------------------")
+
+            # 创建错误日志目录和文件
+            error_log_dir = os.path.join('logs', 'error')
+            os.makedirs(error_log_dir, exist_ok=True)
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            error_log_path = os.path.join(error_log_dir, f'error_{timestamp}.log')
+
+            # 准备日志内容
+            log_content = f"""--- LLMWorker Error Log ---
+Timestamp: {datetime.now().isoformat()}
+
+Prompt that caused the error:
+------------------------------
+{self.prompt}
+
+Full Conversation History (at time of error):
+---------------------------------------------
+{json.dumps(self.history, indent=2, ensure_ascii=False)}
+
+Traceback:
+----------
+{tb_str}
+"""
+            # 写入日志文件
+            try:
+                with open(error_log_path, 'w', encoding='utf-8') as f:
+                    f.write(log_content)
+                print(f"✓ Error details logged to: {error_log_path}")
+            except Exception as log_e:
+                print(f"!!! FAILED TO WRITE ERROR LOG: {log_e}")
+
+
+            error_message = f"【 系统错误 】\n  {type(e).__name__}"
+            # 发送错误信号，使用空列表以匹配信号签名
+            self.finished.emit(error_message, self.history, self.emotion_history,
+                               self.embeddings_history, [], "Error")
 
 
 def clear_history(parent):

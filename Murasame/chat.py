@@ -189,6 +189,8 @@ def get_embedings_layers(response: str, type: str, history: list[dict] = []):
                                        url=qwen3_endpoint)
     embeddings_layers = embeddings_layers.split("</think>")[-1].strip()
     embeddings_layers = format_bot_response(embeddings_layers)
+    if not isinstance(embeddings_layers, list):
+        embeddings_layers = []
     return embeddings_layers, history
 
 
